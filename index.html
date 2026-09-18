@@ -76,14 +76,14 @@ async function api(path, opts) {
 }
 
 /* ---------- supabase (config fetched from /api/config) ---------- */
-let supabase = null;
+let sbClient = null;
 let currentUser = null;
 async function initSupabase() {
   try {
     const cfg = await api("/api/config");
     if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
-      supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-      const { data } = await supabase.auth.getUser();
+      sbClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      const { data } = await sbClient.auth.getUser();
       currentUser = data.user || null;
     }
   } catch (e) {
@@ -271,7 +271,7 @@ function renderJoin() {
 /* ---------- login ---------- */
 function renderLogin() {
   const navRight = `<a href="#/">Home</a>`;
-  if (!supabase) {
+  if (!sbClient) {
     layout(navRight, el(`<p class="muted">Accounts aren't configured for this deployment yet.</p>`));
     return;
   }
@@ -295,7 +295,7 @@ function renderLogin() {
     const email = new FormData(form).get("email");
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true; submitBtn.textContent = "Sending…";
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+    const { error } = await sbClient.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
     submitBtn.disabled = false; submitBtn.textContent = "Send magic link";
     if (error) { errEl.textContent = error.message; errEl.style.display = "block"; }
     else { sentEl.style.display = "block"; }
@@ -305,12 +305,12 @@ function renderLogin() {
 /* ---------- history ---------- */
 async function renderHistory() {
   const navRight = `<a href="#/">Home</a>`;
-  if (!supabase || !currentUser) {
+  if (!sbClient || !currentUser) {
     layout(navRight, el(`<div><h1>Your games</h1><p class="muted"><a href="#/login" style="color:var(--accent);">Sign in</a> to see your game history here.</p></div>`));
     return;
   }
   layout(navRight, el(`<p class="muted">Loading…</p>`));
-  const { data: games } = await supabase.from("games").select("*").order("finished_at", { ascending: false }).limit(50);
+  const { data: games } = await sbClient.from("games").select("*").order("finished_at", { ascending: false }).limit(50);
   const list = (games || []).map((g) => `
     <div class="panel row" style="justify-content:space-between;">
       <div>
