@@ -198,7 +198,7 @@ function renderNew() {
   `);
   layout(navRight, body);
 
-  const form = body.querySelector("#f");
+  const form = body; // body IS the <form id="f"> root element
   const categorySel = form.querySelector('[name="category"]');
   const customWrap = body.querySelector("#customWrap");
   categorySel.addEventListener("change", () => { customWrap.style.display = categorySel.value === "custom" ? "block" : "none"; });
@@ -245,7 +245,7 @@ function renderJoin() {
     </form>
   `);
   layout(navRight, body);
-  const form = body.querySelector("#f");
+  const form = body; // body IS the <form id="f"> root element
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const errEl = body.querySelector("#err");
@@ -286,7 +286,7 @@ function renderLogin() {
     </form>
   `);
   layout(navRight, body);
-  const form = body.querySelector("#f");
+  const form = body; // body IS the <form id="f"> root element
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const errEl = body.querySelector("#err");
