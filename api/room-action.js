@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
       const wasFinished = current.status === "finished";
       let result;
       if (body.type === "decide") {
-        result = decide(current, body.seat, body.choice);
+        result = decide(current, body.seat, body.choice, body.targetSeat);
       } else if (body.type === "bid") {
         result = placeBid(current, body.seat, body.amount);
       } else if (body.type === "pass") {
