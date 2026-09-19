@@ -1,36 +1,10 @@
 class GameError extends Error {}
 
-function otherSeat(seat) {
-  return seat === "host" ? "guest" : "host";
-}
-
 function generateRoomCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
   let out = "";
   for (let i = 0; i < 5; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
   return out;
-}
-
-function createInitialState(code, input) {
-  const now = Date.now();
-  return {
-    code,
-    version: 1,
-    settings: input.settings,
-    hostName: input.hostName,
-    guestName: null,
-    hostUserId: input.hostUserId || null,
-    guestUserId: null,
-    turn: "host",
-    deckIndex: 0,
-    active: null,
-    rosters: { host: [], guest: [] },
-    spent: { host: 0, guest: 0 },
-    givesLeft: { host: input.settings.givesEach, guest: input.settings.givesEach },
-    status: "waiting",
-    createdAt: now,
-    updatedAt: now,
-  };
 }
 
 function clone(state) {
@@ -42,50 +16,87 @@ function bump(state) {
   state.updatedAt = Date.now();
 }
 
+function createInitialState(code, input) {
+  const now = Date.now();
+  return {
+    code,
+    version: 1,
+    settings: input.settings, // { rosterSize, bankroll, minBid, clockSeconds, givesEach, category, deck, numPlayers }
+    players: [
+      { name: input.hostName, userId: input.hostUserId || null, roster: [], spent: 0, givesLeft: input.settings.givesEach },
+    ],
+    turn: 0,
+    deckIndex: 0,
+    active: null,
+    status: "waiting",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function dealNext(state) {
-  const bothFull =
-    state.rosters.host.length >= state.settings.rosterSize &&
-    state.rosters.guest.length >= state.settings.rosterSize;
-  if (bothFull || state.deckIndex >= state.settings.deck.length) {
+  const allFull = state.players.every((p) => p.roster.length >= state.settings.rosterSize);
+  if (allFull || state.deckIndex >= state.settings.deck.length) {
     state.status = "finished";
     state.active = null;
     return;
   }
   const name = state.settings.deck[state.deckIndex];
-  state.active = { name, status: "deciding", holder: state.turn, price: 0, deadline: null };
+  state.active = { name, status: "deciding", holder: state.turn, price: 0, deadline: null, passedBy: [] };
 }
 
-function joinGuest(state, guestName, guestUserId) {
+function addPlayer(state, name, userId) {
   const next = clone(state);
   if (next.status !== "waiting") throw new GameError("Room already started.");
-  next.guestName = guestName;
-  next.guestUserId = guestUserId;
-  next.status = "playing";
-  dealNext(next);
+  if (next.players.length >= next.settings.numPlayers) throw new GameError("Room is full.");
+  next.players.push({ name, userId: userId || null, roster: [], spent: 0, givesLeft: next.settings.givesEach });
+  if (next.players.length === next.settings.numPlayers) {
+    next.status = "playing";
+    dealNext(next);
+  }
   bump(next);
   return next;
 }
 
 function reserveFor(state, seat, countsCurrentCard) {
-  const filled = state.rosters[seat].length + (countsCurrentCard ? 1 : 0);
+  const filled = state.players[seat].roster.length + (countsCurrentCard ? 1 : 0);
   const remainingSlots = Math.max(0, state.settings.rosterSize - filled);
   return remainingSlots * state.settings.minBid;
 }
 
 function maxBidFor(state, seat) {
-  const bankrollLeft = state.settings.bankroll - state.spent[seat];
+  const bankrollLeft = state.settings.bankroll - state.players[seat].spent;
   const reserve = reserveFor(state, seat, true);
   return Math.max(0, bankrollLeft - reserve);
+}
+
+function contendersFor(state, holder) {
+  const out = [];
+  state.players.forEach((p, idx) => {
+    if (idx !== holder && p.roster.length < state.settings.rosterSize) out.push(idx);
+  });
+  return out;
+}
+
+function advanceTurn(state) {
+  for (let i = 0; i < state.players.length; i++) {
+    const candidate = (state.turn + 1 + i) % state.players.length;
+    if (state.players[candidate].roster.length < state.settings.rosterSize) {
+      state.turn = candidate;
+      return;
+    }
+  }
+  // everyone's full — dealNext() will end the game right after this
 }
 
 function lockCurrentCard(state) {
   const active = state.active;
   if (!active) return;
-  const winner = active.holder;
-  state.rosters[winner].push({ name: active.name, price: active.price });
-  state.spent[winner] += active.price;
+  const winner = state.players[active.holder];
+  winner.roster.push({ name: active.name, price: active.price });
+  winner.spent += active.price;
   state.deckIndex += 1;
-  state.turn = otherSeat(state.turn);
+  advanceTurn(state);
   state.active = null;
   dealNext(state);
 }
@@ -100,7 +111,7 @@ function resolveExpired(state) {
   return next;
 }
 
-function decide(state, seat, action) {
+function decide(state, seat, action, targetSeat) {
   const next = clone(state);
   const active = next.active;
   if (!active || active.status !== "deciding") throw new GameError("No card is waiting on a decision.");
@@ -115,12 +126,25 @@ function decide(state, seat, action) {
     active.holder = seat;
     active.price = min;
     active.deadline = Date.now() + next.settings.clockSeconds * 1000;
-  } else {
-    if (next.givesLeft[seat] <= 0) throw new GameError("No gives left.");
-    next.givesLeft[seat] -= 1;
-    active.holder = otherSeat(seat);
+    active.passedBy = [];
+    if (contendersFor(next, seat).length === 0) {
+      lockCurrentCard(next); // nobody else has room left to bid — no point waiting
+    }
+  } else if (action === "give") {
+    if (targetSeat === undefined || targetSeat === null || targetSeat === seat) {
+      throw new GameError("Pick who gets it.");
+    }
+    if (targetSeat < 0 || targetSeat >= next.players.length) throw new GameError("Invalid recipient.");
+    if (next.players[targetSeat].roster.length >= next.settings.rosterSize) {
+      throw new GameError("That player's roster is already full.");
+    }
+    if (next.players[seat].givesLeft <= 0) throw new GameError("No gives left.");
+    next.players[seat].givesLeft -= 1;
+    active.holder = targetSeat;
     active.price = 0;
     lockCurrentCard(next);
+  } else {
+    throw new GameError("Unknown decision.");
   }
   bump(next);
   return next;
@@ -133,6 +157,7 @@ function placeBid(state, seat, amount) {
   const active = next.active;
   if (!active || active.status !== "bidding") throw new GameError("No open bidding right now.");
   if (seat === active.holder) throw new GameError("You already hold the high bid — wait for a raise.");
+  if (next.players[seat].roster.length >= next.settings.rosterSize) throw new GameError("Your roster is already full.");
   if (amount <= active.price) throw new GameError("Bid must be higher than the current price.");
   const max = maxBidFor(next, seat);
   if (amount > max) throw new GameError("That bid would leave you short for the rest of your roster.");
@@ -140,6 +165,10 @@ function placeBid(state, seat, amount) {
   active.price = amount;
   active.holder = seat;
   active.deadline = Date.now() + next.settings.clockSeconds * 1000;
+  active.passedBy = [];
+  if (contendersFor(next, seat).length === 0) {
+    lockCurrentCard(next);
+  }
   bump(next);
   return next;
 }
@@ -151,12 +180,18 @@ function passBid(state, seat) {
   const active = next.active;
   if (!active || active.status !== "bidding") throw new GameError("No open bidding right now.");
   if (seat === active.holder) throw new GameError("You hold the bid — nothing to pass on.");
-  lockCurrentCard(next);
+  if (!active.passedBy.includes(seat)) active.passedBy.push(seat);
+
+  const contenders = contendersFor(next, active.holder);
+  const stillWaitingOn = contenders.filter((idx) => !active.passedBy.includes(idx));
+  if (stillWaitingOn.length === 0) {
+    lockCurrentCard(next);
+  }
   bump(next);
   return next;
 }
 
 module.exports = {
-  GameError, otherSeat, generateRoomCode, createInitialState, joinGuest,
+  GameError, generateRoomCode, createInitialState, addPlayer,
   resolveExpired, decide, placeBid, passBid, maxBidFor,
 };
