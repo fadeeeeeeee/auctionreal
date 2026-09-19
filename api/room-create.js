@@ -13,6 +13,7 @@ module.exports = async (req, res) => {
   try {
     const body = req.body || {};
     const hostName = (body.hostName || "").trim() || "Host";
+    const numPlayers = clampInt(body.numPlayers, 2, 5, 2);
     const rosterSize = clampInt(body.rosterSize, 3, 15, 5);
     const bankroll = clampInt(body.bankroll, 5, 1000, 20);
     const minBid = clampInt(body.minBid, 1, 50, 1);
@@ -21,10 +22,10 @@ module.exports = async (req, res) => {
     const category = body.category || "football";
     const custom = body.customDeck || null;
 
-    const deck = buildDeck(category, custom, rosterSize);
+    const deck = buildDeck(category, custom, rosterSize, numPlayers);
 
     const settings = {
-      rosterSize, bankroll, minBid, clockSeconds, givesEach,
+      numPlayers, rosterSize, bankroll, minBid, clockSeconds, givesEach,
       category: custom ? "custom" : category,
       deck,
     };
@@ -32,7 +33,7 @@ module.exports = async (req, res) => {
     let code = generateRoomCode();
     for (let i = 0; i < 5 && (await getRoom(code)); i++) code = generateRoomCode();
 
-    const hostUserId = body.hostUserId || null; // browser sends this if signed in via Supabase
+    const hostUserId = body.hostUserId || null;
 
     const state = createInitialState(code, { hostName, hostUserId, settings });
     await createRoom(state);
