@@ -1,13 +1,13 @@
 const CATEGORY_PRESETS = {
-  football: [
-    "Josh Allen", "Patrick Mahomes", "Lamar Jackson", "Jayden Daniels",
-    "Saquon Barkley", "Bijan Robinson", "Christian McCaffrey", "Jahmyr Gibbs",
-    "Ja'Marr Chase", "Justin Jefferson", "CeeDee Lamb", "Puka Nacua",
-    "Brock Bowers", "Sam LaPorta", "Trey McBride", "Zach Ertz",
-    "Cade Otton", "Younghoe Koo", "Harrison Butker", "Justin Tucker",
-    "Derrick Henry", "Jonathan Taylor", "A.J. Brown", "Amon-Ra St. Brown",
-    "Tyreek Hill", "Nick Chubb", "Joe Burrow", "Micah Parsons",
-    "T.J. Watt", "Myles Garrett",
+  soccer: [
+    "Lionel Messi", "Cristiano Ronaldo", "Kylian Mbappe", "Erling Haaland",
+    "Vinicius Jr", "Jude Bellingham", "Kevin De Bruyne", "Mohamed Salah",
+    "Bukayo Saka", "Phil Foden", "Rodri", "Robert Lewandowski",
+    "Harry Kane", "Neymar", "Luka Modric", "Virgil van Dijk",
+    "Son Heung-min", "Bernardo Silva", "Federico Valverde", "Pedri",
+    "Jamal Musiala", "Ousmane Dembele", "Lautaro Martinez", "Declan Rice",
+    "Alexia Putellas", "Aitana Bonmati", "Sam Kerr", "Marta",
+    "Achraf Hakimi", "William Saliba",
   ],
   movies: [
     "Jaws", "The Godfather", "Pulp Fiction", "Heat",
@@ -53,7 +53,7 @@ function buildDeck(category, custom, rosterSize, numPlayers) {
   if (custom && custom.trim().length > 0) {
     pool = parseCustomDeck(custom);
   } else {
-    pool = CATEGORY_PRESETS[category] || CATEGORY_PRESETS.football;
+    pool = CATEGORY_PRESETS[category] || CATEGORY_PRESETS.soccer;
   }
   const shuffled = shuffle(pool);
   if (shuffled.length < needed) {
