@@ -64,7 +64,7 @@
 /* ---------- tiny helpers ---------- */
 const $app = document.getElementById("app");
 const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
-const CATEGORIES = ["football", "movies", "pop icons", "custom"];
+const CATEGORIES = ["soccer", "movies", "pop icons", "custom"];
 
 async function api(path, opts) {
   const controller = new AbortController();
