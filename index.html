@@ -3,56 +3,60 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Auction Draft — the $20 head-to-head draft game</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>" />
+<title>Draft Night — a little auction game for two to five people</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>" />
 <style>
   :root {
-    --ink: #0f1117;
-    --panel: #171923;
-    --line: #262b3a;
-    --accent: #4f7dff;
-    --text: #f2f3f7;
-    --muted: #9aa0ae;
+    --bg: #f6efe0;
+    --panel: #fffaf1;
+    --line: #ddceac;
+    --accent: #5c7a52;
+    --accent-dark: #45603d;
+    --text: #332c1f;
+    --muted: #857a5f;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--ink); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   #app { max-width: 760px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 24px; }
   a { color: inherit; }
   h1 { font-size: 1.75rem; font-weight: 800; margin: 0; }
   h2 { font-size: 1.25rem; font-weight: 700; margin: 0; }
-  p { line-height: 1.5; }
+  p { line-height: 1.55; }
   .muted { color: var(--muted); }
-  .small { font-size: 0.8rem; }
-  .xs { font-size: 0.7rem; }
+  .small { font-size: 0.85rem; }
+  .xs { font-size: 0.72rem; }
   .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .col { display: flex; flex-direction: column; gap: 6px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-  .panel.turn { border-color: var(--accent); }
-  .btn { border-radius: 10px; padding: 10px 18px; font-weight: 600; border: none; cursor: pointer; font-size: 0.95rem; }
-  .btn-primary { background: var(--accent); color: white; }
-  .btn-primary:hover { opacity: 0.9; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: 0 1px 2px rgba(80,60,20,0.04); }
+  .panel.turn { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(92,122,82,0.15); }
+  .btn { border-radius: 12px; padding: 10px 18px; font-weight: 600; border: none; cursor: pointer; font-size: 0.95rem; font-family: inherit; }
+  .btn-primary { background: var(--accent); color: #fdfaf1; }
+  .btn-primary:hover { background: var(--accent-dark); }
   .btn-primary:disabled { opacity: 0.5; cursor: default; }
   .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
-  .btn-ghost:hover { border-color: var(--accent); }
-  .input, select, textarea { background: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); width: 100%; font-size: 0.95rem; font-family: inherit; }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent-dark); }
+  .btn-ghost:disabled { opacity: 0.5; cursor: default; }
+  .input, select, textarea { background: #fffef9; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); width: 100%; font-size: 0.95rem; font-family: inherit; }
   .input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
   label span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
   nav { display: flex; justify-content: space-between; align-items: center; }
   nav .brand { font-weight: 800; }
-  nav .links { display: flex; gap: 16px; font-size: 0.9rem; }
+  nav .links { display: flex; gap: 16px; font-size: 0.9rem; align-items: center; }
   ol.roster { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  ol.roster li { display: flex; justify-content: space-between; font-size: 0.8rem; color: #cfd3dd; }
-  .code { font-size: 2.5rem; font-family: ui-monospace, monospace; letter-spacing: 0.3em; color: var(--accent); }
+  ol.roster li { display: flex; justify-content: space-between; font-size: 0.8rem; color: #574f3c; }
+  .code { font-size: 2.5rem; font-family: ui-monospace, monospace; letter-spacing: 0.3em; color: var(--accent-dark); }
   .bar-track { height: 8px; width: 100%; background: var(--line); border-radius: 999px; overflow: hidden; }
   .bar-fill { height: 100%; background: var(--accent); transition: width 0.1s linear; }
-  .error { color: #ff6b6b; font-size: 0.9rem; }
+  .error { color: #a24a3a; font-size: 0.9rem; }
   .steps { display: flex; flex-direction: column; gap: 10px; padding-left: 18px; }
-  #results-board { width: 320px; aspect-ratio: 9/16; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; margin: 0 auto; }
+  #results-board { width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; margin: 0 auto; }
+  .chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: #eee3c8; font-size: 0.72rem; color: var(--accent-dark); font-weight: 600; }
 </style>
 </head>
 <body>
-<div id="app"><p class="muted">Loading…</p></div>
+<div id="app"><p class="muted">Getting things ready…</p></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
@@ -78,28 +82,43 @@ async function api(path, opts) {
 /* ---------- supabase (config fetched from /api/config) ---------- */
 let sbClient = null;
 let currentUser = null;
+let currentUsername = null;
+
 async function initSupabase() {
   try {
     const cfg = await api("/api/config");
     if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
-      sbClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      sbClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+        auth: { flowType: "pkce", detectSessionInUrl: true },
+      });
       const { data } = await sbClient.auth.getUser();
       currentUser = data.user || null;
+      if (currentUser) await loadProfile();
+      // clean up any leftover ?code=... from a magic-link redirect
+      if (location.search.includes("code=")) {
+        history.replaceState({}, "", location.pathname + location.hash);
+      }
     }
   } catch (e) {
-    console.warn("Supabase not configured yet:", e.message);
+    console.warn("Accounts not reachable yet:", e.message);
   }
+}
+
+async function loadProfile() {
+  if (!sbClient || !currentUser) return;
+  const { data } = await sbClient.from("profiles").select("username").eq("id", currentUser.id).maybeSingle();
+  currentUsername = data ? data.username : null;
 }
 
 /* ---------- router ---------- */
 function navigate(hash) { location.hash = hash; }
 window.addEventListener("hashchange", render);
 window.addEventListener("DOMContentLoaded", () => {
-  render(); // show the UI immediately, don't block on network
+  render(); // show something immediately, never block the first paint on a network call
   initSupabase().then(() => {
-    // once we know sign-in state, re-render if the current view depends on it
+    if (currentUser && !currentUsername) { navigate("/username"); return; }
     const hash = location.hash.replace(/^#/, "") || "/";
-    if (hash === "/" || hash.startsWith("/login") || hash.startsWith("/history")) render();
+    if (hash === "/" || hash.startsWith("/login") || hash.startsWith("/history") || hash.startsWith("/new") || hash.startsWith("/join")) render();
   });
 });
 
@@ -117,50 +136,67 @@ function render() {
   if (parts[0] === "new") return renderNew();
   if (parts[0] === "join") return renderJoin();
   if (parts[0] === "login") return renderLogin();
+  if (parts[0] === "username") return renderUsername();
   if (parts[0] === "history") return renderHistory();
   if (parts[0] === "room" && parts[1]) return renderRoom(parts[1].toUpperCase(), params.get("seat"));
   return renderHome();
 }
 
-function layout(navRight, body) {
+function navLinks() {
+  if (currentUser && currentUsername) {
+    return `<span class="chip">@${escapeHtml(currentUsername)}</span><a href="#/history">History</a><a href="#" id="signOutLink">Sign out</a>`;
+  }
+  return `<a href="#/login">Sign in</a>`;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function layout(body) {
   $app.innerHTML = "";
   $app.appendChild(el(`
     <div style="display:flex;flex-direction:column;gap:24px;">
       <nav>
-        <a class="brand" href="#/">Auction Draft</a>
-        <div class="links">${navRight}</div>
+        <a class="brand" href="#/">🌿 Draft Night</a>
+        <div class="links">${navLinks()}</div>
       </nav>
       <div id="body"></div>
     </div>
   `));
   document.getElementById("body").appendChild(body);
+  const signOut = document.getElementById("signOutLink");
+  if (signOut) signOut.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (sbClient) await sbClient.auth.signOut();
+    currentUser = null; currentUsername = null;
+    navigate("/");
+  });
 }
 
 /* ---------- home ---------- */
 function renderHome() {
-  const navRight = currentUser
-    ? `<a href="#/history">History</a>`
-    : `<a href="#/login">Sign in</a>`;
-  layout(navRight, el(`
+  layout(el(`
     <div style="display:flex;flex-direction:column;gap:32px;">
-      <section style="display:flex;flex-direction:column;gap:16px;padding:32px 0;">
-        <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;">two players · one bankroll · no positions</p>
-        <h1 style="font-size:2.5rem;">You don't pick. You pay.</h1>
-        <p class="muted" style="max-width:520px;">A head-to-head auction draft: the deck deals you a name and starts a clock.
-        There are no positions and no rankings — nothing in the app tells you who is good. That argument is the game.</p>
+      <section style="display:flex;flex-direction:column;gap:16px;padding:24px 0;">
+        <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;">2 to 5 players · one bankroll each · nothing but nerve</p>
+        <h1 style="font-size:2.4rem;line-height:1.15;">Pull up a chair. Nobody's picking teams tonight — everybody's bidding.</h1>
+        <p class="muted" style="max-width:520px;">The deck deals a name and starts a clock. Take it cheap, hand it off to a friend for free, or watch the table fight over it. There's no ranking telling you who's good — that's the whole fun of it, figuring it out yourselves.</p>
         <div class="row">
           <a href="#/new"><button class="btn btn-primary">Start a room</button></a>
           <a href="#/join"><button class="btn btn-ghost">Join with a code</button></a>
         </div>
-        <p class="xs muted">No signup required. Your opponent just needs the code.</p>
+        <p class="xs muted">No account needed to play — just share the code with your friends.</p>
       </section>
       <section class="panel">
-        <h2 style="margin-bottom:14px;">How a card goes</h2>
+        <h2 style="margin-bottom:14px;">How a round goes</h2>
         <ol class="steps small muted">
-          <li><b style="color:var(--text)">The deck deals.</b> The server shuffles a hidden deck and flips one name at a time.</li>
-          <li><b style="color:var(--text)">Whoever is up decides.</b> Take for the minimum, or give it to your opponent for free.</li>
-          <li><b style="color:var(--text)">The other one bids.</b> Raise, pass, raise again. The clock resets on every raise.</li>
-          <li><b style="color:var(--text)">It locks.</b> The money comes off, the name lands on a roster, the next card flips.</li>
+          <li><b style="color:var(--text)">A name flips.</b> The deck's hidden and shuffled — nobody knows what's coming.</li>
+          <li><b style="color:var(--text)">Whoever's up chooses.</b> Take it for the minimum, or hand it to someone else at the table for free.</li>
+          <li><b style="color:var(--text)">Everyone else can jump in.</b> Raise, drop out, raise again — the clock resets every time someone bids.</li>
+          <li><b style="color:var(--text)">It settles.</b> The cash comes off the bankroll, the name lands on a roster, and the next one flips.</li>
         </ol>
       </section>
     </div>
@@ -169,13 +205,21 @@ function renderHome() {
 
 /* ---------- new room ---------- */
 function renderNew() {
-  const navRight = `<a href="#/">Home</a>`;
+  const nameField = (currentUser && currentUsername)
+    ? `<p class="small muted">Playing as <b style="color:var(--text)">@${escapeHtml(currentUsername)}</b></p>`
+    : `<label><span>Your name</span><input class="input" name="hostName" required placeholder="Ari" /></label>`;
+
   const body = el(`
     <form id="f" style="display:flex;flex-direction:column;gap:20px;max-width:520px;">
-      <h1>Start a room</h1>
-      <label><span>Your name</span><input class="input" name="hostName" required placeholder="Ari" /></label>
+      <h1>Get a room going</h1>
+      ${nameField}
       <div class="grid2">
-        <label><span>Roster size</span><input class="input" type="number" name="rosterSize" min="3" max="15" value="5" /></label>
+        <label><span>How many are playing?</span>
+          <select class="input" name="numPlayers">
+            <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+          </select>
+        </label>
+        <label><span>Roster size (each)</span><input class="input" type="number" name="rosterSize" min="3" max="15" value="5" /></label>
         <label><span>Bankroll (each)</span><input class="input" type="number" name="bankroll" min="5" max="1000" value="20" /></label>
         <label><span>Minimum bid</span><input class="input" type="number" name="minBid" min="1" max="50" value="1" /></label>
         <label><span>Counter-bid clock</span>
@@ -183,22 +227,22 @@ function renderNew() {
             <option value="10">10s</option><option value="15" selected>15s</option><option value="20">20s</option><option value="30">30s</option>
           </select>
         </label>
-        <label><span>Gives each</span><input class="input" type="number" name="givesEach" min="0" max="10" value="2" /></label>
-        <label><span>Category</span>
+        <label><span>Free gives (each)</span><input class="input" type="number" name="givesEach" min="0" max="10" value="2" /></label>
+        <label><span>What are we drafting?</span>
           <select class="input" name="category">${CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
         </label>
       </div>
       <label id="customWrap" style="display:none;">
-        <span>Custom names (one per line or comma separated — need at least roster×2)</span>
+        <span>Your own list (one per line or comma separated — need at least players × roster size)</span>
         <textarea class="input" name="customDeck" rows="5" placeholder="Name one&#10;Name two&#10;Name three..."></textarea>
       </label>
       <p class="error" id="err" style="display:none;"></p>
-      <button class="btn btn-primary" style="align-self:start;" type="submit">Create room</button>
+      <button class="btn btn-primary" style="align-self:start;" type="submit">Open the room</button>
     </form>
   `);
-  layout(navRight, body);
+  layout(body);
 
-  const form = body; // body IS the <form id="f"> root element
+  const form = body;
   const categorySel = form.querySelector('[name="category"]');
   const customWrap = body.querySelector("#customWrap");
   categorySel.addEventListener("change", () => { customWrap.style.display = categorySel.value === "custom" ? "block" : "none"; });
@@ -209,7 +253,8 @@ function renderNew() {
     errEl.style.display = "none";
     const fd = new FormData(form);
     const payload = {
-      hostName: fd.get("hostName"),
+      hostName: (currentUser && currentUsername) ? currentUsername : fd.get("hostName"),
+      numPlayers: Number(fd.get("numPlayers")),
       rosterSize: Number(fd.get("rosterSize")),
       bankroll: Number(fd.get("bankroll")),
       minBid: Number(fd.get("minBid")),
@@ -220,47 +265,51 @@ function renderNew() {
       hostUserId: currentUser ? currentUser.id : null,
     };
     const submitBtn = form.querySelector('button[type="submit"]');
-    submitBtn.disabled = true; submitBtn.textContent = "Creating…";
+    submitBtn.disabled = true; submitBtn.textContent = "Opening…";
     try {
       const data = await api("/api/room-create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      localStorage.setItem(`seat:${data.code}`, "host");
-      navigate(`/room/${data.code}?seat=host`);
+      localStorage.setItem(`seat:${data.code}`, "0");
+      navigate(`/room/${data.code}?seat=0`);
     } catch (err) {
       errEl.textContent = err.message; errEl.style.display = "block";
-      submitBtn.disabled = false; submitBtn.textContent = "Create room";
+      submitBtn.disabled = false; submitBtn.textContent = "Open the room";
     }
   });
 }
 
 /* ---------- join ---------- */
 function renderJoin() {
-  const navRight = `<a href="#/">Home</a>`;
+  const nameField = (currentUser && currentUsername)
+    ? `<p class="small muted">Playing as <b style="color:var(--text)">@${escapeHtml(currentUsername)}</b></p>`
+    : `<label><span>Your name</span><input class="input" name="guestName" required placeholder="Bo" /></label>`;
+
   const body = el(`
     <form id="f" style="display:flex;flex-direction:column;gap:20px;max-width:360px;">
       <h1>Join with a code</h1>
       <label><span>Room code</span><input class="input" name="code" maxlength="5" style="text-transform:uppercase;letter-spacing:0.2em;" required /></label>
-      <label><span>Your name</span><input class="input" name="guestName" required placeholder="Bo" /></label>
+      ${nameField}
       <p class="error" id="err" style="display:none;"></p>
       <button class="btn btn-primary" style="align-self:start;" type="submit">Join room</button>
     </form>
   `);
-  layout(navRight, body);
-  const form = body; // body IS the <form id="f"> root element
+  layout(body);
+  const form = body;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const errEl = body.querySelector("#err");
     errEl.style.display = "none";
     const fd = new FormData(form);
     const code = fd.get("code").trim().toUpperCase();
+    const guestName = (currentUser && currentUsername) ? currentUsername : fd.get("guestName");
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true; submitBtn.textContent = "Joining…";
     try {
-      await api("/api/room-join", {
+      const data = await api("/api/room-join", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, guestName: fd.get("guestName"), guestUserId: currentUser ? currentUser.id : null }),
+        body: JSON.stringify({ code, guestName, guestUserId: currentUser ? currentUser.id : null }),
       });
-      localStorage.setItem(`seat:${code}`, "guest");
-      navigate(`/room/${code}?seat=guest`);
+      localStorage.setItem(`seat:${code}`, String(data.seat));
+      navigate(`/room/${code}?seat=${data.seat}`);
     } catch (err) {
       errEl.textContent = err.message; errEl.style.display = "block";
       submitBtn.disabled = false; submitBtn.textContent = "Join room";
@@ -270,23 +319,22 @@ function renderJoin() {
 
 /* ---------- login ---------- */
 function renderLogin() {
-  const navRight = `<a href="#/">Home</a>`;
   if (!sbClient) {
-    layout(navRight, el(`<p class="muted">Accounts aren't configured for this deployment yet.</p>`));
+    layout(el(`<p class="muted">Accounts aren't set up for this deployment yet.</p>`));
     return;
   }
   const body = el(`
     <form id="f" style="display:flex;flex-direction:column;gap:20px;max-width:360px;">
       <h1>Sign in</h1>
-      <p class="small muted">Signing in isn't required to play — it just saves your game history.</p>
+      <p class="small muted">You don't need this to play — it just remembers your name and keeps a little history of your games.</p>
       <label><span>Email</span><input class="input" type="email" name="email" required /></label>
       <p class="error" id="err" style="display:none;"></p>
-      <p class="small" id="sent" style="display:none;">Check your email for a sign-in link.</p>
+      <p class="small" id="sent" style="display:none;">Check your email for a link — it'll bring you right back here.</p>
       <button class="btn btn-primary" style="align-self:start;" type="submit">Send magic link</button>
     </form>
   `);
-  layout(navRight, body);
-  const form = body; // body IS the <form id="f"> root element
+  layout(body);
+  const form = body;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const errEl = body.querySelector("#err");
@@ -302,54 +350,95 @@ function renderLogin() {
   });
 }
 
+/* ---------- choose a username (first sign-in only) ---------- */
+function renderUsername() {
+  if (!sbClient || !currentUser) { navigate("/login"); return; }
+  const body = el(`
+    <form id="f" style="display:flex;flex-direction:column;gap:20px;max-width:360px;">
+      <h1>Pick a name for the table</h1>
+      <p class="small muted">This is what everyone sees when you play — no spaces, keep it short.</p>
+      <label><span>Username</span><input class="input" name="username" required minlength="2" maxlength="20" pattern="[A-Za-z0-9_]+" placeholder="ari_b" /></label>
+      <p class="error" id="err" style="display:none;"></p>
+      <button class="btn btn-primary" style="align-self:start;" type="submit">Save and continue</button>
+    </form>
+  `);
+  layout(body);
+  const form = body;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = body.querySelector("#err");
+    errEl.style.display = "none";
+    const username = new FormData(form).get("username").trim();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true; submitBtn.textContent = "Saving…";
+    const { error } = await sbClient.from("profiles").insert({ id: currentUser.id, username });
+    submitBtn.disabled = false; submitBtn.textContent = "Save and continue";
+    if (error) {
+      errEl.textContent = error.message.includes("duplicate") ? "That name's taken — try another." : error.message;
+      errEl.style.display = "block";
+      return;
+    }
+    currentUsername = username;
+    navigate("/");
+  });
+}
+
 /* ---------- history ---------- */
 async function renderHistory() {
-  const navRight = `<a href="#/">Home</a>`;
   if (!sbClient || !currentUser) {
-    layout(navRight, el(`<div><h1>Your games</h1><p class="muted"><a href="#/login" style="color:var(--accent);">Sign in</a> to see your game history here.</p></div>`));
+    layout(el(`<div><h1>Your games</h1><p class="muted"><a href="#/login" style="color:var(--accent-dark);">Sign in</a> to keep a little history here.</p></div>`));
     return;
   }
-  layout(navRight, el(`<p class="muted">Loading…</p>`));
+  layout(el(`<p class="muted">Loading…</p>`));
   const { data: games } = await sbClient.from("games").select("*").order("finished_at", { ascending: false }).limit(50);
-  const list = (games || []).map((g) => `
-    <div class="panel row" style="justify-content:space-between;">
-      <div>
-        <p style="margin:0;font-weight:600;">${g.host_name} vs ${g.guest_name || "?"}</p>
-        <p class="xs muted" style="margin:2px 0 0;">${g.category} · ${new Date(g.finished_at).toLocaleString()}</p>
+  const list = (games || []).map((g) => {
+    const names = (g.players || []).map((p) => p.name).join(", ");
+    return `
+      <div class="panel row" style="justify-content:space-between;">
+        <div>
+          <p style="margin:0;font-weight:600;">${escapeHtml(names)}</p>
+          <p class="xs muted" style="margin:2px 0 0;">${escapeHtml(g.category)} · ${new Date(g.finished_at).toLocaleString()}</p>
+        </div>
+        <span class="xs muted">${g.code}</span>
       </div>
-      <span class="xs muted">${g.code}</span>
-    </div>
-  `).join("") || `<p class="muted">No finished games yet.</p>`;
-  layout(navRight, el(`<div style="display:flex;flex-direction:column;gap:16px;"><h1>Your games</h1>${list}</div>`));
+    `;
+  }).join("") || `<p class="muted">Nothing played yet — that's what the "Start a room" button is for.</p>`;
+  layout(el(`<div style="display:flex;flex-direction:column;gap:16px;"><h1>Your games</h1>${list}</div>`));
 }
 
 /* ---------- room ---------- */
 function renderRoom(code, seatFromUrl) {
-  if (seatFromUrl === "host" || seatFromUrl === "guest") localStorage.setItem(`seat:${code}`, seatFromUrl);
-  const seat = localStorage.getItem(`seat:${code}`);
-  const navRight = `<a href="#/">Home</a>`;
-  layout(navRight, el(`<p class="muted">Loading room…</p>`));
+  if (seatFromUrl !== null && seatFromUrl !== undefined && seatFromUrl !== "") {
+    localStorage.setItem(`seat:${code}`, seatFromUrl);
+  }
+  const storedSeat = localStorage.getItem(`seat:${code}`);
+  const seat = storedSeat !== null ? Number(storedSeat) : null;
+
+  layout(el(`<p class="muted">Finding the table…</p>`));
 
   let bidAmount = 0;
+  let giveTarget = null;
 
   async function poll() {
     try {
       const state = await api(`/api/room-state?code=${code}`);
       draw(state);
     } catch (err) {
-      layout(navRight, el(`<p class="error">${err.message}</p>`));
+      layout(el(`<p class="error">${err.message}</p>`));
       stopPolling();
     }
   }
 
   function draw(state) {
     if (state.status === "waiting") {
-      layout(navRight, el(`
+      const joined = state.players.map((p) => p.name).join(", ");
+      layout(el(`
         <div style="display:flex;flex-direction:column;gap:16px;">
-          <h1>Room ${state.code}</h1>
-          <p class="muted">Waiting for an opponent. Share this code:</p>
+          <h1>Waiting on the rest of the table</h1>
+          <p class="muted">Share this code — you need ${state.settings.numPlayers} to start:</p>
           <p class="code">${state.code}</p>
-          <p class="xs muted">${state.hostName} is in. This page updates automatically once someone joins.</p>
+          <p class="small">In so far: ${escapeHtml(joined)} (${state.players.length} of ${state.settings.numPlayers})</p>
+          <p class="xs muted">This updates on its own once everyone's in.</p>
         </div>
       `));
       return;
@@ -361,54 +450,68 @@ function renderRoom(code, seatFromUrl) {
     }
 
     const active = state.active;
-    const oppSeat = seat === "host" ? "guest" : (seat === "guest" ? "host" : null);
-    const hostLeft = state.settings.bankroll - state.spent.host;
-    const guestLeft = state.settings.bankroll - state.spent.guest;
-
     const wrap = el(`<div style="display:flex;flex-direction:column;gap:24px;"></div>`);
     wrap.appendChild(el(`
       <header class="row" style="justify-content:space-between;">
         <h1 style="font-size:1.1rem;">Room ${state.code}</h1>
-        <span class="xs muted">${state.settings.category}</span>
+        <span class="xs muted">${escapeHtml(state.settings.category)}</span>
       </header>
     `));
 
-    const grid = el(`<div class="grid2"></div>`);
-    grid.appendChild(seatPanel(state.hostName, state.settings.bankroll, hostLeft, state.givesLeft.host, state.rosters.host, seat === "host", state.turn === "host" && active && active.status === "deciding"));
-    grid.appendChild(seatPanel(state.guestName || "Guest", state.settings.bankroll, guestLeft, state.givesLeft.guest, state.rosters.guest, seat === "guest", state.turn === "guest" && active && active.status === "deciding"));
+    const grid = el(`<div class="grid3"></div>`);
+    state.players.forEach((p, idx) => {
+      const left = state.settings.bankroll - p.spent;
+      const isTurn = state.turn === idx && active && active.status === "deciding";
+      grid.appendChild(seatPanel(p.name, state.settings.bankroll, left, p.givesLeft, p.roster, seat === idx, isTurn));
+    });
     wrap.appendChild(grid);
 
     if (active) {
       const cardPanel = el(`
         <div class="panel" style="display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;">
           <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;">card ${state.deckIndex + 1} of ${state.settings.deckSize}</p>
-          <h2 style="font-size:1.6rem;">${active.name}</h2>
+          <h2 style="font-size:1.6rem;">${escapeHtml(active.name)}</h2>
           <div id="active-body" style="width:100%;display:flex;flex-direction:column;gap:14px;align-items:center;"></div>
         </div>
       `);
       const activeBody = cardPanel.querySelector("#active-body");
 
       if (active.status === "deciding") {
-        const whoText = state.turn === seat ? "You decide" : (seat ? "Your opponent decides" : `${state.turn === "host" ? state.hostName : state.guestName} decides`);
-        activeBody.appendChild(el(`<p class="small muted">${whoText}: take for $${state.settings.minBid}, or give it away free.</p>`));
-        if (seat && state.turn === seat) {
-          const givesLeft = state.givesLeft[seat];
+        const upName = state.players[state.turn].name;
+        const whoText = state.turn === seat ? "Your call" : `${escapeHtml(upName)}'s call`;
+        activeBody.appendChild(el(`<p class="small muted">${whoText}: take it for $${state.settings.minBid}, or hand it to someone else at the table for free.</p>`));
+        if (seat !== null && state.turn === seat) {
+          const givesLeft = state.players[seat].givesLeft;
+          const others = state.players.map((p, i) => ({ p, i })).filter((o) => o.i !== seat);
+          const targetPicker = others.length > 1
+            ? `<select class="input" id="giveTarget" style="width:auto;">${others.map((o) => `<option value="${o.i}">${escapeHtml(o.p.name)}</option>`).join("")}</select>`
+            : `<input type="hidden" id="giveTarget" value="${others[0] ? others[0].i : ""}" />`;
           const controls = el(`
-            <div class="row" style="justify-content:center;">
-              <button class="btn btn-primary" id="takeBtn">Take for $${state.settings.minBid}</button>
-              <button class="btn btn-ghost" id="giveBtn" ${givesLeft <= 0 ? "disabled" : ""}>Give away free (${givesLeft} left)</button>
+            <div class="col" style="align-items:center;">
+              <div class="row" style="justify-content:center;">
+                <button class="btn btn-primary" id="takeBtn">Take for $${state.settings.minBid}</button>
+              </div>
+              <div class="row" style="justify-content:center;align-items:center;">
+                <span class="xs muted">or give it to</span>
+                ${targetPicker}
+                <button class="btn btn-ghost" id="giveBtn" ${givesLeft <= 0 ? "disabled" : ""}>free (${givesLeft} left)</button>
+              </div>
             </div>
           `);
           activeBody.appendChild(controls);
           controls.querySelector("#takeBtn").addEventListener("click", () => doAction({ type: "decide", seat, choice: "take" }));
-          controls.querySelector("#giveBtn").addEventListener("click", () => doAction({ type: "decide", seat, choice: "give" }));
+          controls.querySelector("#giveBtn").addEventListener("click", () => {
+            const t = Number(controls.querySelector("#giveTarget").value);
+            doAction({ type: "decide", seat, choice: "give", targetSeat: t });
+          });
         } else {
-          activeBody.appendChild(el(`<p class="small muted">Waiting…</p>`));
+          activeBody.appendChild(el(`<p class="small muted">Hang tight…</p>`));
         }
       }
 
       if (active.status === "bidding" && active.deadline) {
-        const holderText = active.holder === seat ? "You hold the bid" : "Opponent holds the bid";
+        const holderName = state.players[active.holder].name;
+        const holderText = active.holder === seat ? "You're holding the bid" : `${escapeHtml(holderName)} is holding the bid`;
         activeBody.appendChild(el(`<p class="small">${holderText} at <b>$${active.price}</b></p>`));
         const barWrap = el(`<div style="width:100%;max-width:260px;display:flex;flex-direction:column;gap:4px;">
           <div class="bar-track"><div class="bar-fill" id="bar"></div></div>
@@ -417,7 +520,9 @@ function renderRoom(code, seatFromUrl) {
         activeBody.appendChild(barWrap);
         startCountdown(barWrap.querySelector("#bar"), barWrap.querySelector("#secs"), active.deadline, state.settings.clockSeconds);
 
-        if (seat && active.holder !== seat) {
+        const iAmFull = seat !== null && state.players[seat].roster.length >= state.settings.rosterSize;
+        const iHavePassed = seat !== null && active.passedBy.includes(seat);
+        if (seat !== null && active.holder !== seat && !iAmFull && !iHavePassed) {
           if (!bidAmount || bidAmount <= active.price) bidAmount = active.price + 1;
           const controls = el(`
             <div class="row" style="justify-content:center;">
@@ -430,8 +535,8 @@ function renderRoom(code, seatFromUrl) {
           controls.querySelector("#bidInput").addEventListener("input", (e) => { bidAmount = Number(e.target.value); });
           controls.querySelector("#raiseBtn").addEventListener("click", () => doAction({ type: "bid", seat, amount: bidAmount }));
           controls.querySelector("#passBtn").addEventListener("click", () => doAction({ type: "pass", seat }));
-        } else if (seat) {
-          activeBody.appendChild(el(`<p class="xs muted">Waiting on your opponent to raise or pass…</p>`));
+        } else if (seat !== null) {
+          activeBody.appendChild(el(`<p class="xs muted">Waiting on the rest of the table…</p>`));
         }
       }
 
@@ -441,7 +546,7 @@ function renderRoom(code, seatFromUrl) {
     const errHolder = el(`<p class="error" style="display:none;"></p>`);
     wrap.appendChild(errHolder);
 
-    layout(navRight, wrap);
+    layout(wrap);
 
     async function doAction(payload) {
       try {
@@ -462,11 +567,11 @@ function renderRoom(code, seatFromUrl) {
 }
 
 function seatPanel(name, bankroll, left, gives, entries, isMe, isTurn) {
-  const rosterHtml = entries.map((e, i) => `<li><span>${i + 1}. ${e.name}</span><span>${e.price === 0 ? "free" : "$" + e.price}</span></li>`).join("");
+  const rosterHtml = entries.map((e, i) => `<li><span>${i + 1}. ${escapeHtml(e.name)}</span><span>${e.price === 0 ? "free" : "$" + e.price}</span></li>`).join("");
   return el(`
     <div class="panel${isTurn ? " turn" : ""}" style="display:flex;flex-direction:column;gap:6px;">
       <div class="row" style="justify-content:space-between;">
-        <span style="font-weight:600;">${name}${isMe ? " (you)" : ""}</span>
+        <span style="font-weight:600;">${escapeHtml(name)}${isMe ? " (you)" : ""}</span>
         <span class="xs muted">$${bankroll - left} of $${bankroll}</span>
       </div>
       <p class="xs muted" style="margin:0;">$${left} left · ${gives} gives left</p>
@@ -488,51 +593,48 @@ function startCountdown(barEl, secsEl, deadline, totalSeconds) {
 
 /* ---------- results board ---------- */
 function renderResults(state) {
-  const navRight = `<a href="#/">Home</a>`;
-  const hostLeft = state.settings.bankroll - state.spent.host;
-  const guestLeft = state.settings.bankroll - state.spent.guest;
-  const all = [...state.rosters.host, ...state.rosters.guest].sort((a, b) => b.price - a.price);
-  const priciest = all[0];
+  const all = state.players.flatMap((p) => p.roster);
+  const priciest = [...all].sort((a, b) => b.price - a.price)[0];
 
-  function rosterCol(name, entries, left) {
-    const items = entries.map((e, i) => `<li><span>${i + 1}. ${e.name}</span><span>${e.price === 0 ? "free" : "$" + e.price}</span></li>`).join("");
+  function rosterCol(p) {
+    const left = state.settings.bankroll - p.spent;
+    const items = p.roster.map((e, i) => `<li><span>${i + 1}. ${escapeHtml(e.name)}</span><span>${e.price === 0 ? "free" : "$" + e.price}</span></li>`).join("");
     return `
       <div style="display:flex;flex-direction:column;gap:2px;">
         <div class="row" style="justify-content:space-between;">
-          <span style="font-weight:600;font-size:0.85rem;">${name}</span>
+          <span style="font-weight:600;font-size:0.85rem;">${escapeHtml(p.name)}</span>
           <span class="xs muted">$${state.settings.bankroll - left} of $${state.settings.bankroll}</span>
         </div>
         <ol class="roster">${items}</ol>
-        <p class="xs" style="color:var(--accent);align-self:end;margin:2px 0 0;">finished with $${left}</p>
+        <p class="xs" style="color:var(--accent-dark);align-self:end;margin:2px 0 0;">finished with $${left}</p>
       </div>
     `;
   }
 
   const body = el(`
     <div style="display:flex;flex-direction:column;gap:20px;align-items:center;">
-      <h1>Final board</h1>
+      <h1>That's a wrap</h1>
       <div id="results-board">
         <div style="text-align:center;">
-          <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;margin:0;">the $${state.settings.bankroll} auction draft</p>
-          <h2>${state.settings.category}</h2>
+          <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;margin:0;">the $${state.settings.bankroll} draft</p>
+          <h2>${escapeHtml(state.settings.category)}</h2>
         </div>
-        ${rosterCol(state.hostName, state.rosters.host, hostLeft)}
-        ${rosterCol(state.guestName || "Guest", state.rosters.guest, guestLeft)}
-        ${priciest ? `<p class="xs muted" style="text-align:center;margin-top:auto;">Priciest pick: ${priciest.name} $${priciest.price}</p>` : ""}
-        <p class="xs muted" style="text-align:center;opacity:0.6;">Auction Draft · $${state.settings.bankroll} each · ${state.settings.rosterSize} players</p>
+        ${state.players.map(rosterCol).join("")}
+        ${priciest ? `<p class="xs muted" style="text-align:center;margin-top:auto;">Biggest splurge: ${escapeHtml(priciest.name)} $${priciest.price}</p>` : ""}
+        <p class="xs muted" style="text-align:center;opacity:0.6;">Draft Night · $${state.settings.bankroll} each · ${state.settings.rosterSize} each · ${state.players.length} players</p>
       </div>
       <button class="btn btn-primary" id="downloadBtn">Download PNG</button>
     </div>
   `);
-  layout(navRight, body);
+  layout(body);
 
   body.querySelector("#downloadBtn").addEventListener("click", async () => {
     const btn = body.querySelector("#downloadBtn");
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      const dataUrl = await htmlToImage.toPng(document.getElementById("results-board"), { pixelRatio: 2, backgroundColor: "#0f1117" });
+      const dataUrl = await htmlToImage.toPng(document.getElementById("results-board"), { pixelRatio: 2, backgroundColor: "#fffaf1" });
       const link = document.createElement("a");
-      link.download = `auction-draft-${state.code}.png`;
+      link.download = `draft-night-${state.code}.png`;
       link.href = dataUrl;
       link.click();
     } finally {
