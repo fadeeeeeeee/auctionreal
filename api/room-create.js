@@ -19,7 +19,7 @@ module.exports = async (req, res) => {
     const minBid = clampInt(body.minBid, 1, 50, 1);
     const clockSeconds = [10, 15, 20, 30].includes(body.clockSeconds) ? body.clockSeconds : 15;
     const givesEach = clampInt(body.givesEach, 0, 10, 2);
-    const category = body.category || "football";
+    const category = body.category || "soccer";
     const custom = body.customDeck || null;
 
     const deck = buildDeck(category, custom, rosterSize, numPlayers);
