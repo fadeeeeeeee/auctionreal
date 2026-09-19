@@ -7,13 +7,10 @@ async function recordGameIfFinished(state) {
     await admin.from("games").insert({
       code: state.code,
       category: state.settings.category,
-      host_name: state.hostName,
-      guest_name: state.guestName,
-      host_user_id: state.hostUserId,
-      guest_user_id: state.guestUserId,
-      settings: { ...state.settings, deck: undefined },
-      rosters: state.rosters,
-      spent: state.spent,
+      num_players: state.players.length,
+      players: state.players.map((p) => ({
+        name: p.name, userId: p.userId, roster: p.roster, spent: p.spent,
+      })),
     });
   } catch (err) {
     console.error("Failed to record game history", err);
