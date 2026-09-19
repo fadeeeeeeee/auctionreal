@@ -5,6 +5,9 @@ const CATEGORY_PRESETS = {
     "Ja'Marr Chase", "Justin Jefferson", "CeeDee Lamb", "Puka Nacua",
     "Brock Bowers", "Sam LaPorta", "Trey McBride", "Zach Ertz",
     "Cade Otton", "Younghoe Koo", "Harrison Butker", "Justin Tucker",
+    "Derrick Henry", "Jonathan Taylor", "A.J. Brown", "Amon-Ra St. Brown",
+    "Tyreek Hill", "Nick Chubb", "Joe Burrow", "Micah Parsons",
+    "T.J. Watt", "Myles Garrett",
   ],
   movies: [
     "Jaws", "The Godfather", "Pulp Fiction", "Heat",
@@ -12,6 +15,9 @@ const CATEGORY_PRESETS = {
     "There Will Be Blood", "Parasite", "Whiplash", "The Prestige",
     "Inception", "Interstellar", "Oldboy", "Amelie",
     "City of God", "The Dark Knight", "Fargo", "Chinatown",
+    "The Shining", "Alien", "Blade Runner", "Casablanca",
+    "Rear Window", "Vertigo", "Apocalypse Now", "Taxi Driver",
+    "The Usual Suspects", "Memento",
   ],
   "pop icons": [
     "Beyonce", "Taylor Swift", "Rihanna", "Drake",
@@ -19,6 +25,9 @@ const CATEGORY_PRESETS = {
     "Billie Eilish", "Travis Scott", "SZA", "Doja Cat",
     "Olivia Rodrigo", "Post Malone", "Frank Ocean", "Adele",
     "Ariana Grande", "Kanye West", "Lady Gaga", "Bruno Mars",
+    "Chappell Roan", "Sabrina Carpenter", "Tyler, the Creator", "J. Cole",
+    "Zendaya", "Harry Styles", "Megan Thee Stallion", "Lizzo",
+    "Charli XCX", "Ice Spice",
   ],
 };
 
@@ -38,8 +47,8 @@ function parseCustomDeck(raw) {
     .filter(Boolean);
 }
 
-function buildDeck(category, custom, rosterSize) {
-  const needed = rosterSize * 2;
+function buildDeck(category, custom, rosterSize, numPlayers) {
+  const needed = rosterSize * numPlayers;
   let pool;
   if (custom && custom.trim().length > 0) {
     pool = parseCustomDeck(custom);
@@ -49,7 +58,7 @@ function buildDeck(category, custom, rosterSize) {
   const shuffled = shuffle(pool);
   if (shuffled.length < needed) {
     throw new Error(
-      `Need at least ${needed} names for a roster size of ${rosterSize} (got ${shuffled.length}).`
+      `Need at least ${needed} names for ${numPlayers} players with a roster size of ${rosterSize} (got ${shuffled.length}).`
     );
   }
   return shuffled.slice(0, needed);
