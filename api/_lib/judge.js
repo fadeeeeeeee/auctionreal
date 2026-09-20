@@ -1,4 +1,4 @@
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 /**
  * Asks Groq to pick a winner among the finished draft's rosters and give a
@@ -38,7 +38,8 @@ async function judgeWinner({ category, bankroll, players }) {
     body: JSON.stringify({
       model: GROQ_MODEL,
       temperature: 0.7,
-      max_tokens: 300,
+      max_completion_tokens: 300,
+      reasoning_format: "hidden",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
