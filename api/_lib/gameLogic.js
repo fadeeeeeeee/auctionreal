@@ -51,6 +51,8 @@ function beginVoting(state) {
   state.winnerVotes = {}; // { [seat]: targetSeat }
   state.winnerSeat = null;
   state.winnerReason = null;
+  state.aiJudging = false;
+  state.aiError = null;
   state.active = null;
 }
 
@@ -113,6 +115,7 @@ function applyAiVerdict(state, winnerSeat, reason) {
   next.winnerSeat = winnerSeat;
   next.winnerReason = reason;
   next.aiError = null;
+  next.aiJudging = false;
   bump(next);
   return next;
 }
@@ -121,6 +124,22 @@ function setAiError(state, message) {
   const next = clone(state);
   if (next.votePhase !== "ai_pending") return state; // stale — a verdict landed in the meantime
   next.aiError = message;
+  next.aiJudging = false;
+  bump(next);
+  return next;
+}
+
+/**
+ * Claims the right to make the (rate-limited, costs real tokens) Groq call.
+ * Only one caller — across every connected player's request — should ever
+ * hold this at a time. Throws if someone else already has it or a verdict
+ * already landed, so callers know to just back off rather than call the AI.
+ */
+function beginAiJudging(state) {
+  const next = clone(state);
+  if (next.votePhase !== "ai_pending") throw new GameError("No AI verdict is pending.");
+  if (next.aiJudging) throw new GameError("Already judging.");
+  next.aiJudging = true;
   bump(next);
   return next;
 }
@@ -274,5 +293,5 @@ function passBid(state, seat) {
 module.exports = {
   GameError, generateRoomCode, createInitialState, addPlayer,
   resolveExpired, decide, placeBid, passBid, maxBidFor,
-  castMethodVote, castWinnerVote, applyAiVerdict, setAiError,
+  castMethodVote, castWinnerVote, applyAiVerdict, setAiError, beginAiJudging,
 };
