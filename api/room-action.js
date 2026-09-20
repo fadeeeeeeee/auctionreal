@@ -1,8 +1,37 @@
 const { getRoom, updateRoom } = require("./_lib/redis");
-const { decide, placeBid, passBid, castMethodVote, castWinnerVote, applyAiVerdict, setAiError } = require("./_lib/gameLogic");
+const {
+  decide, placeBid, passBid, castMethodVote, castWinnerVote,
+  applyAiVerdict, setAiError, beginAiJudging, GameError,
+} = require("./_lib/gameLogic");
 const { toPublicState } = require("./_lib/publicState");
 const { recordGameIfFinished } = require("./_lib/history");
 const { judgeWinner } = require("./_lib/judge");
+
+// Runs the Groq call at most once per invocation, guarded by the aiJudging
+// lock so concurrent requests (multiple players polling/voting at once)
+// can't all fire it simultaneously and blow through the rate limit.
+async function tryClaimAndJudge(code) {
+  let claimed;
+  try {
+    claimed = await updateRoom(code, (current) => beginAiJudging(current));
+  } catch (err) {
+    return null; // someone else already has the lock, or nothing's pending — not our job
+  }
+  try {
+    const { winnerIndex, reason } = await judgeWinner({
+      category: claimed.settings.category,
+      bankroll: claimed.settings.bankroll,
+      players: claimed.players,
+    });
+    return await updateRoom(code, (current) => applyAiVerdict(current, winnerIndex, reason));
+  } catch (aiErr) {
+    try {
+      return await updateRoom(code, (current) => setAiError(current, aiErr.message));
+    } catch {
+      return claimed;
+    }
+  }
+}
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed." });
@@ -10,6 +39,17 @@ module.exports = async (req, res) => {
     const body = req.body || {};
     const code = (body.code || "").trim().toUpperCase();
     let becameFinished = false;
+
+    if (body.type === "retry-ai") {
+      const result = await tryClaimAndJudge(code);
+      if (result) {
+        if (result.status === "finished") await recordGameIfFinished(result);
+        return res.status(200).json(toPublicState(result));
+      }
+      // someone else is already handling it — just return current state
+      const current = await getRoom(code);
+      return res.status(200).json(toPublicState(current));
+    }
 
     let next = await updateRoom(code, (current) => {
       const wasFinished = current.status === "finished";
@@ -31,24 +71,13 @@ module.exports = async (req, res) => {
       return result;
     });
 
-    // A vote just tipped things over to "let the AI decide" (outright or by a tie).
-    // Ask Groq right here, in this same request, and fold the verdict straight in.
-    if (next.votePhase === "ai_pending") {
-      try {
-        const { winnerIndex, reason } = await judgeWinner({
-          category: next.settings.category,
-          bankroll: next.settings.bankroll,
-          players: next.players,
-        });
-        next = await updateRoom(code, (current) => applyAiVerdict(current, winnerIndex, reason));
-        becameFinished = true;
-      } catch (aiErr) {
-        // Persist the real reason so the client can show it instead of hanging forever.
-        try {
-          next = await updateRoom(code, (current) => setAiError(current, aiErr.message));
-        } catch {
-          // if even that fails, fall through and return whatever we already have
-        }
+    // A vote just tipped things to "let the AI decide" — claim the lock and
+    // judge right here, in this same request, exactly once.
+    if (next.votePhase === "ai_pending" && !next.aiJudging) {
+      const judged = await tryClaimAndJudge(code);
+      if (judged) {
+        next = judged;
+        if (next.status === "finished") becameFinished = true;
       }
     }
 
