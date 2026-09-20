@@ -112,6 +112,15 @@ function applyAiVerdict(state, winnerSeat, reason) {
   next.status = "finished";
   next.winnerSeat = winnerSeat;
   next.winnerReason = reason;
+  next.aiError = null;
+  bump(next);
+  return next;
+}
+
+function setAiError(state, message) {
+  const next = clone(state);
+  if (next.votePhase !== "ai_pending") return state; // stale — a verdict landed in the meantime
+  next.aiError = message;
   bump(next);
   return next;
 }
@@ -265,5 +274,5 @@ function passBid(state, seat) {
 module.exports = {
   GameError, generateRoomCode, createInitialState, addPlayer,
   resolveExpired, decide, placeBid, passBid, maxBidFor,
-  castMethodVote, castWinnerVote, applyAiVerdict,
+  castMethodVote, castWinnerVote, applyAiVerdict, setAiError,
 };
