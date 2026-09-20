@@ -418,10 +418,16 @@ function renderRoom(code, seatFromUrl) {
 
   let bidAmount = 0;
   let giveTarget = null;
+  let lastVersion = null;
 
   async function poll() {
     try {
       const state = await api(`/api/room-state?code=${code}`);
+      // Skip re-rendering when nothing actually changed — a full redraw every
+      // second would blow away whatever the person is mid-typing (like a bid
+      // amount), and on mobile it also closes the on-screen keyboard.
+      if (state.version === lastVersion) return;
+      lastVersion = state.version;
       draw(state);
     } catch (err) {
       layout(el(`<p class="error">${err.message}</p>`));
@@ -445,7 +451,7 @@ function renderRoom(code, seatFromUrl) {
     }
 
     if (state.status === "voting") {
-      renderVoting(state, seat, draw);
+      renderVoting(state, seat, (newState) => { lastVersion = newState.version; draw(newState); });
       return;
     }
 
@@ -559,6 +565,7 @@ function renderRoom(code, seatFromUrl) {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: state.code, ...payload }),
         });
+        lastVersion = data.version;
         draw(data);
       } catch (err) {
         errHolder.textContent = err.message;
