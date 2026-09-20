@@ -144,7 +144,17 @@ function stopSidebar() { if (sidebarCleanup) { sidebarCleanup(); sidebarCleanup 
 let latestRoomState = null; // updated by draw() so chat/voice can look up player names
 let activeVoiceContext = null; // { code, seat } while mic is live, for the unload safety net
 
-const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+let iceServers = [{ urls: "stun:stun.l.google.com:19302" }]; // replaced once /api/turn-credentials responds
+let turnConfigured = false;
+async function loadIceServers() {
+  try {
+    const data = await api("/api/turn-credentials");
+    if (Array.isArray(data.iceServers) && data.iceServers.length) iceServers = data.iceServers;
+    turnConfigured = !!data.turnConfigured;
+  } catch (e) {
+    // keep the STUN-only fallback already set above
+  }
+}
 
 /* ---------- chat + voice sidebar (built once per room visit, never torn down) ---------- */
 function setupSidebar(code, seat) {
@@ -202,6 +212,16 @@ function setupSidebar(code, seat) {
     voiceRosterEl.textContent = "In voice: " + seats.map((s) => (s === seat ? "you" : nameForSeat(s))).join(", ");
   }
 
+  const voiceDiagEl = document.getElementById("voiceDiag");
+  const diagLines = {};
+  function updateDiag(otherSeat, connectionState, iceState) {
+    const label = nameForSeat(otherSeat);
+    const bits = [connectionState, iceState].filter(Boolean).join(" / ");
+    diagLines[otherSeat] = `${label}: ${bits}${turnConfigured ? "" : " (STUN only — no TURN configured)"}`;
+    voiceDiagEl.innerHTML = "";
+    Object.values(diagLines).forEach((line) => voiceDiagEl.appendChild(el(`<span>${escapeHtml(line)}</span>`)));
+  }
+
   const voicePromptsEl = document.getElementById("voicePrompts");
   function showTapToHear(otherSeat, audio) {
     const existingId = "tapHear" + otherSeat;
@@ -214,9 +234,11 @@ function setupSidebar(code, seat) {
   }
 
   function createPeerConnection(otherSeat) {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers });
     voice.stream.getTracks().forEach((t) => pc.addTrack(t, voice.stream));
     pc.onicecandidate = (e) => { if (e.candidate) sendSignal(otherSeat, "ice", e.candidate.toJSON()); };
+    pc.onconnectionstatechange = () => updateDiag(otherSeat, pc.connectionState);
+    pc.oniceconnectionstatechange = () => updateDiag(otherSeat, pc.connectionState, pc.iceConnectionState);
     pc.ontrack = (e) => {
       let audio = voice.audios[otherSeat];
       if (!audio) {
@@ -278,6 +300,11 @@ function setupSidebar(code, seat) {
     if (audio) { audio.remove(); delete voice.audios[otherSeat]; }
     const prompt = document.getElementById("tapHear" + otherSeat);
     if (prompt) prompt.remove();
+    delete diagLines[otherSeat];
+    if (voiceDiagEl) {
+      voiceDiagEl.innerHTML = "";
+      Object.values(diagLines).forEach((line) => voiceDiagEl.appendChild(el(`<span>${escapeHtml(line)}</span>`)));
+    }
   }
 
   async function pollPresence() {
@@ -310,6 +337,7 @@ function setupSidebar(code, seat) {
       alert("Couldn't access your microphone: " + e.message);
       return false;
     }
+    await loadIceServers(); // fetch fresh TURN credentials for this session, if configured
     voice.joined = true;
     activeVoiceContext = { code, seat };
     await api("/api/room-voice-presence", {
@@ -461,6 +489,7 @@ function layoutRoom() {
             <button class="btn btn-ghost" id="muteToggleBtn" type="button" style="display:none;">Mute</button>
             <p class="small muted" id="voiceRoster">Nobody's in voice yet.</p>
             <div id="voicePrompts" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <div id="voiceDiag" class="xs muted" style="display:flex;flex-direction:column;gap:2px;"></div>
             <p class="xs muted">Live mic chat, direct between browsers. Works great on most home wifi — may not connect over some mobile networks or office firewalls.</p>
           </div>
         </div>
