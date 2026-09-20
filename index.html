@@ -694,7 +694,10 @@ function renderVoting(state, seat, redraw) {
   if (retryBtn) retryBtn.addEventListener("click", async () => {
     retryBtn.disabled = true; retryBtn.textContent = "Retrying…";
     try {
-      const data = await api(`/api/room-state?code=${state.code}`, { cache: "no-store" });
+      const data = await api("/api/room-action", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: state.code, type: "retry-ai" }),
+      });
       redraw(data);
     } catch (err) {
       retryBtn.disabled = false; retryBtn.textContent = "Try again";
