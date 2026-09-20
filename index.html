@@ -53,6 +53,19 @@
   .steps { display: flex; flex-direction: column; gap: 10px; padding-left: 18px; }
   #results-board { width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; margin: 0 auto; }
   .chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: #eee3c8; font-size: 0.72rem; color: var(--accent-dark); font-weight: 600; }
+  .room-wrap { display: flex; gap: 20px; align-items: flex-start; }
+  .room-wrap > #body { flex: 1; min-width: 0; }
+  .room-wrap > #sidebar { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  @media (max-width: 760px) {
+    .room-wrap { flex-direction: column; }
+    .room-wrap > #sidebar { width: 100%; }
+  }
+  .tabrow { display: flex; border-bottom: 1px solid var(--line); }
+  .tabbtn { flex: 1; background: none; border: none; padding: 10px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit; font-size: 0.82rem; }
+  .tabbtn.active { color: var(--accent-dark); box-shadow: inset 0 -2px 0 var(--accent); }
+  .tabpane { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #chatMessages { height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .chat-bubble { padding: 6px 10px; border-radius: 10px; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -125,8 +138,227 @@ window.addEventListener("DOMContentLoaded", () => {
 let pollTimer = null;
 function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
+let sidebarCleanup = null;
+function stopSidebar() { if (sidebarCleanup) { sidebarCleanup(); sidebarCleanup = null; } }
+
+let latestRoomState = null; // updated by draw() so chat/voice can look up player names
+let activeVoiceContext = null; // { code, seat } while mic is live, for the unload safety net
+
+const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+
+/* ---------- chat + voice sidebar (built once per room visit, never torn down) ---------- */
+function setupSidebar(code, seat) {
+  const chatMessagesEl = document.getElementById("chatMessages");
+  const chatForm = document.getElementById("chatForm");
+  const chatInput = document.getElementById("chatInput");
+
+  let chatCursor = 0;
+  async function pollChat() {
+    try {
+      const data = await api(`/api/room-chat?code=${code}&since=${chatCursor}`);
+      chatCursor = data.nextIndex;
+      data.items.forEach((msg) => appendChatMessage(chatMessagesEl, msg, seat));
+    } catch (e) { /* transient — next poll retries */ }
+  }
+  function appendChatMessage(container, msg, mySeat) {
+    const mine = msg.seat === mySeat;
+    container.appendChild(el(`
+      <div style="align-self:${mine ? "flex-end" : "flex-start"};max-width:85%;">
+        <p class="xs muted" style="margin:0 0 2px;">${escapeHtml(msg.name)}</p>
+        <p class="chat-bubble" style="background:${mine ? "var(--accent)" : "#eee3c8"};color:${mine ? "#fdfaf1" : "var(--text)"};margin:0;">${escapeHtml(msg.text)}</p>
+      </div>
+    `));
+    container.scrollTop = container.scrollHeight;
+  }
+  chatForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text || seat === null) return;
+    chatInput.value = "";
+    try {
+      await api("/api/room-chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, seat, text }),
+      });
+    } catch (err) { /* keep it simple — message just won't appear, they can retype */ }
+  });
+  pollChat();
+  const chatTimer = setInterval(pollChat, 2000);
+
+  /* ---- voice ---- */
+  const voiceToggleBtn = document.getElementById("voiceToggleBtn");
+  const muteToggleBtn = document.getElementById("muteToggleBtn");
+  const voiceRosterEl = document.getElementById("voiceRoster");
+  const voice = { joined: false, stream: null, peers: {}, audios: {}, sigCursor: 0, presenceTimer: null, sigTimer: null };
+
+  function nameForSeat(s) {
+    if (latestRoomState && latestRoomState.players && latestRoomState.players[s]) return latestRoomState.players[s].name;
+    return "seat " + s;
+  }
+
+  function updateVoiceRoster(seats) {
+    if (!voiceRosterEl) return;
+    if (seats.length === 0) { voiceRosterEl.textContent = "Nobody's in voice yet."; return; }
+    voiceRosterEl.textContent = "In voice: " + seats.map((s) => (s === seat ? "you" : nameForSeat(s))).join(", ");
+  }
+
+  function createPeerConnection(otherSeat) {
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    voice.stream.getTracks().forEach((t) => pc.addTrack(t, voice.stream));
+    pc.onicecandidate = (e) => { if (e.candidate) sendSignal(otherSeat, "ice", e.candidate.toJSON()); };
+    pc.ontrack = (e) => {
+      let audio = voice.audios[otherSeat];
+      if (!audio) {
+        audio = document.createElement("audio");
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+        voice.audios[otherSeat] = audio;
+      }
+      audio.srcObject = e.streams[0];
+    };
+    return pc;
+  }
+
+  async function sendSignal(toSeat, kind, payload) {
+    try {
+      await api("/api/room-signal", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, fromSeat: seat, toSeat, kind, payload }),
+      });
+    } catch (e) { /* the periodic presence/signal poll will retry the connection */ }
+  }
+
+  async function initiateConnection(otherSeat) {
+    const pc = createPeerConnection(otherSeat);
+    voice.peers[otherSeat] = pc;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await sendSignal(otherSeat, "offer", offer);
+  }
+
+  async function handleSignal(sig) {
+    const other = sig.fromSeat;
+    let pc = voice.peers[other];
+    if (sig.kind === "offer") {
+      if (!pc) { pc = createPeerConnection(other); voice.peers[other] = pc; }
+      await pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await sendSignal(other, "answer", answer);
+    } else if (sig.kind === "answer") {
+      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
+    } else if (sig.kind === "ice") {
+      if (pc) { try { await pc.addIceCandidate(new RTCIceCandidate(sig.payload)); } catch (e) { /* benign — late/duplicate candidate */ } }
+    }
+  }
+
+  function teardownPeer(otherSeat) {
+    const pc = voice.peers[otherSeat];
+    if (pc) { pc.close(); delete voice.peers[otherSeat]; }
+    const audio = voice.audios[otherSeat];
+    if (audio) { audio.remove(); delete voice.audios[otherSeat]; }
+  }
+
+  async function pollPresence() {
+    try {
+      const { seats } = await api(`/api/room-voice-presence?code=${code}`);
+      updateVoiceRoster(seats);
+      seats.forEach((other) => {
+        if (other === seat || voice.peers[other]) return;
+        if (other > seat) initiateConnection(other); // lower seat always initiates — avoids duplicate offers
+      });
+      Object.keys(voice.peers).forEach((s) => { if (!seats.includes(Number(s))) teardownPeer(Number(s)); });
+    } catch (e) { /* transient — next poll retries */ }
+  }
+
+  async function pollSignals() {
+    try {
+      const { items, nextIndex } = await api(`/api/room-signal?code=${code}&since=${voice.sigCursor}`);
+      voice.sigCursor = nextIndex;
+      for (const sig of items) {
+        if (sig.toSeat !== seat) continue;
+        await handleSignal(sig);
+      }
+    } catch (e) { /* transient — next poll retries */ }
+  }
+
+  async function joinVoice() {
+    try {
+      voice.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      alert("Couldn't access your microphone: " + e.message);
+      return false;
+    }
+    voice.joined = true;
+    activeVoiceContext = { code, seat };
+    await api("/api/room-voice-presence", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, seat, action: "join" }),
+    });
+    pollPresence();
+    voice.presenceTimer = setInterval(pollPresence, 3000);
+    voice.sigTimer = setInterval(pollSignals, 1000);
+    return true;
+  }
+
+  async function leaveVoice() {
+    clearInterval(voice.presenceTimer);
+    clearInterval(voice.sigTimer);
+    Object.keys(voice.peers).forEach((s) => teardownPeer(Number(s)));
+    if (voice.stream) voice.stream.getTracks().forEach((t) => t.stop());
+    voice.joined = false;
+    activeVoiceContext = null;
+    try {
+      await api("/api/room-voice-presence", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, seat, action: "leave" }),
+      });
+    } catch (e) { /* best effort */ }
+  }
+
+  if (seat === null) {
+    voiceToggleBtn.disabled = true;
+    voiceToggleBtn.textContent = "Join the room to use voice";
+  }
+  voiceToggleBtn.addEventListener("click", async () => {
+    if (seat === null) return;
+    if (!voice.joined) {
+      voiceToggleBtn.disabled = true; voiceToggleBtn.textContent = "Connecting…";
+      const ok = await joinVoice();
+      voiceToggleBtn.disabled = false;
+      if (ok) { voiceToggleBtn.textContent = "Leave voice"; muteToggleBtn.style.display = "inline-block"; }
+      else { voiceToggleBtn.textContent = "🎙️ Join voice"; }
+    } else {
+      await leaveVoice();
+      voiceToggleBtn.textContent = "🎙️ Join voice";
+      muteToggleBtn.style.display = "none";
+    }
+  });
+  muteToggleBtn.addEventListener("click", () => {
+    if (!voice.stream) return;
+    const track = voice.stream.getAudioTracks()[0];
+    track.enabled = !track.enabled;
+    muteToggleBtn.textContent = track.enabled ? "Mute" : "Unmute";
+  });
+
+  return function cleanup() {
+    clearInterval(chatTimer);
+    if (voice.joined) leaveVoice();
+  };
+}
+
+// Best-effort: if the tab closes while the mic is live, let the room know.
+// sendBeacon fires-and-forgets during unload, when a normal fetch would be cancelled.
+window.addEventListener("pagehide", () => {
+  if (activeVoiceContext) {
+    const blob = new Blob([JSON.stringify({ ...activeVoiceContext, action: "leave" })], { type: "application/json" });
+    navigator.sendBeacon("/api/room-voice-presence", blob);
+  }
+});
+
 function render() {
   stopPolling();
+  stopSidebar();
   const hash = location.hash.replace(/^#/, "") || "/";
   const [path, query] = hash.split("?");
   const params = new URLSearchParams(query || "");
@@ -156,6 +388,7 @@ function escapeHtml(s) {
 }
 
 function layout(body) {
+  $app.style.maxWidth = "760px";
   $app.innerHTML = "";
   $app.appendChild(el(`
     <div style="display:flex;flex-direction:column;gap:24px;">
@@ -174,6 +407,67 @@ function layout(body) {
     currentUser = null; currentUsername = null;
     navigate("/");
   });
+}
+
+/** One-time shell for the room view: nav + a #body/#sidebar pair that persists
+ * across game-state redraws, so the chat box and voice controls never get torn
+ * down and rebuilt (which would wipe a typed message or a live mic connection). */
+function layoutRoom() {
+  $app.style.maxWidth = "1040px";
+  $app.innerHTML = "";
+  $app.appendChild(el(`
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <nav>
+        <a class="brand" href="#/">🌿 Draft Night</a>
+        <div class="links">${navLinks()}</div>
+      </nav>
+      <div class="room-wrap">
+        <div id="body"></div>
+        <div id="sidebar" class="panel">
+          <div class="tabrow">
+            <button class="tabbtn active" data-tab="chat" type="button">💬 Chat</button>
+            <button class="tabbtn" data-tab="voice" type="button">🎙️ Voice</button>
+          </div>
+          <div id="chatTab" class="tabpane" style="display:flex;">
+            <div id="chatMessages"></div>
+            <form id="chatForm" style="display:flex;gap:6px;">
+              <input id="chatInput" class="input" placeholder="Say something…" maxlength="500" autocomplete="off" />
+              <button class="btn btn-primary" type="submit">Send</button>
+            </form>
+          </div>
+          <div id="voiceTab" class="tabpane" style="display:none;">
+            <button class="btn btn-primary" id="voiceToggleBtn" type="button">🎙️ Join voice</button>
+            <button class="btn btn-ghost" id="muteToggleBtn" type="button" style="display:none;">Mute</button>
+            <p class="small muted" id="voiceRoster">Nobody's in voice yet.</p>
+            <p class="xs muted">Live mic chat, direct between browsers. Works great on most home wifi — may not connect over some mobile networks or office firewalls.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `));
+  const signOut = document.getElementById("signOutLink");
+  if (signOut) signOut.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (sbClient) await sbClient.auth.signOut();
+    currentUser = null; currentUsername = null;
+    navigate("/");
+  });
+  $app.querySelectorAll(".tabbtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $app.querySelectorAll(".tabbtn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("chatTab").style.display = btn.dataset.tab === "chat" ? "flex" : "none";
+      document.getElementById("voiceTab").style.display = btn.dataset.tab === "voice" ? "flex" : "none";
+    });
+  });
+}
+
+/** Replaces only the game-content column, leaving the sidebar (and its live
+ * chat/voice state) completely untouched. */
+function setMain(contentEl) {
+  const bodyEl = document.getElementById("body");
+  bodyEl.innerHTML = "";
+  bodyEl.appendChild(contentEl);
 }
 
 /* ---------- home ---------- */
@@ -414,7 +708,9 @@ function renderRoom(code, seatFromUrl) {
   const storedSeat = localStorage.getItem(`seat:${code}`);
   const seat = storedSeat !== null ? Number(storedSeat) : null;
 
-  layout(el(`<p class="muted">Finding the table…</p>`));
+  layoutRoom();
+  setMain(el(`<p class="muted">Finding the table…</p>`));
+  sidebarCleanup = setupSidebar(code, seat);
 
   let bidAmount = 0;
   let giveTarget = null;
@@ -428,9 +724,10 @@ function renderRoom(code, seatFromUrl) {
       // amount), and on mobile it also closes the on-screen keyboard.
       if (state.version === lastVersion) return;
       lastVersion = state.version;
+      latestRoomState = state;
       draw(state);
     } catch (err) {
-      layout(el(`<p class="error">${err.message}</p>`));
+      setMain(el(`<p class="error">${err.message}</p>`));
       stopPolling();
     }
   }
@@ -438,7 +735,7 @@ function renderRoom(code, seatFromUrl) {
   function draw(state) {
     if (state.status === "waiting") {
       const joined = state.players.map((p) => p.name).join(", ");
-      layout(el(`
+      setMain(el(`
         <div style="display:flex;flex-direction:column;gap:16px;">
           <h1>Waiting on the rest of the table</h1>
           <p class="muted">Share this code — you need ${state.settings.numPlayers} to start:</p>
@@ -557,7 +854,7 @@ function renderRoom(code, seatFromUrl) {
     const errHolder = el(`<p class="error" style="display:none;"></p>`);
     wrap.appendChild(errHolder);
 
-    layout(wrap);
+    setMain(wrap);
 
     async function doAction(payload) {
       try {
@@ -642,7 +939,7 @@ function renderVoting(state, seat, redraw) {
       </div>
     `));
     wrap.appendChild(errHolder);
-    layout(wrap);
+    setMain(wrap);
     if (!iVoted && seat !== null) {
       wrap.querySelector("#voteAi").addEventListener("click", () => vote({ type: "vote-method", seat, choice: "ai" }));
       wrap.querySelector("#votePlayers").addEventListener("click", () => vote({ type: "vote-method", seat, choice: "players" }));
@@ -668,7 +965,7 @@ function renderVoting(state, seat, redraw) {
       </div>
     `));
     wrap.appendChild(errHolder);
-    layout(wrap);
+    setMain(wrap);
     if (!iVoted && seat !== null) {
       wrap.querySelectorAll("[data-seat]").forEach((btn) => {
         btn.addEventListener("click", () => vote({ type: "vote-winner", seat, targetSeat: Number(btn.dataset.seat) }));
@@ -689,7 +986,7 @@ function renderVoting(state, seat, redraw) {
     </div>
   `);
   wrap.appendChild(retryWrap);
-  layout(wrap);
+  setMain(wrap);
   const retryBtn = wrap.querySelector("#retryAi");
   if (retryBtn) retryBtn.addEventListener("click", async () => {
     retryBtn.disabled = true; retryBtn.textContent = "Retrying…";
@@ -756,7 +1053,7 @@ function renderResults(state) {
       <button class="btn btn-primary" id="downloadBtn">Download PNG</button>
     </div>
   `);
-  layout(body);
+  setMain(body);
 
   body.querySelector("#downloadBtn").addEventListener("click", async () => {
     const btn = body.querySelector("#downloadBtn");
