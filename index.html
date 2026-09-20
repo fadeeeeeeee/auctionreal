@@ -670,13 +670,29 @@ function renderVoting(state, seat, redraw) {
     return;
   }
 
-  // ai_pending — server resolves this automatically on the next vote or poll
-  wrap.appendChild(el(`
-    <div class="panel" style="text-align:center;">
+  // ai_pending — server retries this automatically on every vote and every poll
+  const errMsg = state.aiError
+    ? `<p class="error" style="margin-top:8px;">${escapeHtml(state.aiError)}</p>`
+    : "";
+  const retryWrap = el(`
+    <div class="panel" style="text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center;">
       <p class="small muted">The commissioner is looking over everyone's roster…</p>
+      ${errMsg}
+      ${state.aiError ? `<button class="btn btn-ghost" id="retryAi">Try again</button>` : ""}
     </div>
-  `));
+  `);
+  wrap.appendChild(retryWrap);
   layout(wrap);
+  const retryBtn = wrap.querySelector("#retryAi");
+  if (retryBtn) retryBtn.addEventListener("click", async () => {
+    retryBtn.disabled = true; retryBtn.textContent = "Retrying…";
+    try {
+      const data = await api(`/api/room-state?code=${state.code}`, { cache: "no-store" });
+      redraw(data);
+    } catch (err) {
+      retryBtn.disabled = false; retryBtn.textContent = "Try again";
+    }
+  });
 }
 
 /* ---------- results board ---------- */
