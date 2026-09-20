@@ -202,6 +202,17 @@ function setupSidebar(code, seat) {
     voiceRosterEl.textContent = "In voice: " + seats.map((s) => (s === seat ? "you" : nameForSeat(s))).join(", ");
   }
 
+  const voicePromptsEl = document.getElementById("voicePrompts");
+  function showTapToHear(otherSeat, audio) {
+    const existingId = "tapHear" + otherSeat;
+    if (document.getElementById(existingId)) return; // already showing one for this person
+    const btn = el(`<button class="btn btn-ghost" id="${existingId}">🔊 Tap to hear ${escapeHtml(nameForSeat(otherSeat))}</button>`);
+    voicePromptsEl.appendChild(btn);
+    btn.addEventListener("click", () => {
+      audio.play().then(() => btn.remove()).catch(() => { /* leave the button up to try again */ });
+    });
+  }
+
   function createPeerConnection(otherSeat) {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     voice.stream.getTracks().forEach((t) => pc.addTrack(t, voice.stream));
@@ -211,10 +222,18 @@ function setupSidebar(code, seat) {
       if (!audio) {
         audio = document.createElement("audio");
         audio.autoplay = true;
+        audio.playsInline = true;
         document.body.appendChild(audio);
         voice.audios[otherSeat] = audio;
       }
       audio.srcObject = e.streams[0];
+      // Some browsers (Safari/iOS especially) silently refuse to autoplay
+      // audio that starts playing well after the "Join voice" click — the
+      // WebRTC handshake takes a few seconds, which is often too long for
+      // the browser to still count it as tied to that user gesture. Force
+      // it explicitly, and if that's still blocked, show a fallback the
+      // person can tap — that always works since it's its own fresh gesture.
+      audio.play().catch(() => showTapToHear(otherSeat, audio));
     };
     return pc;
   }
@@ -257,6 +276,8 @@ function setupSidebar(code, seat) {
     if (pc) { pc.close(); delete voice.peers[otherSeat]; }
     const audio = voice.audios[otherSeat];
     if (audio) { audio.remove(); delete voice.audios[otherSeat]; }
+    const prompt = document.getElementById("tapHear" + otherSeat);
+    if (prompt) prompt.remove();
   }
 
   async function pollPresence() {
@@ -439,6 +460,7 @@ function layoutRoom() {
             <button class="btn btn-primary" id="voiceToggleBtn" type="button">🎙️ Join voice</button>
             <button class="btn btn-ghost" id="muteToggleBtn" type="button" style="display:none;">Mute</button>
             <p class="small muted" id="voiceRoster">Nobody's in voice yet.</p>
+            <div id="voicePrompts" style="display:flex;flex-direction:column;gap:6px;"></div>
             <p class="xs muted">Live mic chat, direct between browsers. Works great on most home wifi — may not connect over some mobile networks or office firewalls.</p>
           </div>
         </div>
