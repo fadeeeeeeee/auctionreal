@@ -444,6 +444,11 @@ function renderRoom(code, seatFromUrl) {
       return;
     }
 
+    if (state.status === "voting") {
+      renderVoting(state, seat, draw);
+      return;
+    }
+
     if (state.status === "finished") {
       renderResults(state);
       return;
@@ -591,7 +596,105 @@ function startCountdown(barEl, secsEl, deadline, totalSeconds) {
   tick();
 }
 
+/* ---------- post-draft voting ---------- */
+function renderVoting(state, seat, redraw) {
+  const wrap = el(`<div style="display:flex;flex-direction:column;gap:20px;"></div>`);
+  wrap.appendChild(el(`<h1>The draft's done — how should we crown a winner?</h1>`));
+
+  const errHolder = el(`<p class="error" style="display:none;"></p>`);
+
+  async function vote(payload) {
+    errHolder.style.display = "none";
+    try {
+      const data = await api("/api/room-action", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: state.code, ...payload }),
+      });
+      redraw(data);
+    } catch (err) {
+      errHolder.textContent = err.message;
+      errHolder.style.display = "block";
+    }
+  }
+
+  if (state.votePhase === "method") {
+    const votes = state.methodVotes || {};
+    const iVoted = seat !== null && votes[seat] !== undefined;
+    const votedCount = Object.keys(votes).length;
+    wrap.appendChild(el(`
+      <div class="panel" style="display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center;">
+        <p class="muted small">${votedCount} of ${state.players.length} have weighed in.</p>
+        ${iVoted
+          ? `<p class="small">You picked <b>${votes[seat] === "ai" ? "let the AI decide" : "let us vote"}</b> — waiting on the rest of the table.</p>`
+          : `<div class="row" style="justify-content:center;">
+               <button class="btn btn-primary" id="voteAi">🤖 Let the AI decide</button>
+               <button class="btn btn-ghost" id="votePlayers">🗳️ Let us vote</button>
+             </div>`
+        }
+        <p class="xs muted">Majority rules. A tie hands it to the AI.</p>
+      </div>
+    `));
+    wrap.appendChild(errHolder);
+    layout(wrap);
+    if (!iVoted && seat !== null) {
+      wrap.querySelector("#voteAi").addEventListener("click", () => vote({ type: "vote-method", seat, choice: "ai" }));
+      wrap.querySelector("#votePlayers").addEventListener("click", () => vote({ type: "vote-method", seat, choice: "players" }));
+    }
+    return;
+  }
+
+  if (state.votePhase === "players") {
+    const votes = state.winnerVotes || {};
+    const iVoted = seat !== null && votes[seat] !== undefined;
+    const votedCount = Object.keys(votes).length;
+    const options = state.players.map((p, i) => `
+      <button class="btn btn-ghost" data-seat="${i}">${escapeHtml(p.name)}</button>
+    `).join("");
+    wrap.appendChild(el(`
+      <div class="panel" style="display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center;">
+        <p class="muted small">${votedCount} of ${state.players.length} have voted. Who had the best draft?</p>
+        ${iVoted
+          ? `<p class="small">You voted for <b>${escapeHtml(state.players[votes[seat]].name)}</b> — waiting on the rest of the table.</p>`
+          : `<div class="row" style="justify-content:center;">${options}</div>`
+        }
+        <p class="xs muted">A tie hands it to the AI to break.</p>
+      </div>
+    `));
+    wrap.appendChild(errHolder);
+    layout(wrap);
+    if (!iVoted && seat !== null) {
+      wrap.querySelectorAll("[data-seat]").forEach((btn) => {
+        btn.addEventListener("click", () => vote({ type: "vote-winner", seat, targetSeat: Number(btn.dataset.seat) }));
+      });
+    }
+    return;
+  }
+
+  // ai_pending — server resolves this automatically on the next vote or poll
+  wrap.appendChild(el(`
+    <div class="panel" style="text-align:center;">
+      <p class="small muted">The commissioner is looking over everyone's roster…</p>
+    </div>
+  `));
+  layout(wrap);
+}
+
 /* ---------- results board ---------- */
+function winnerBanner(state) {
+  if (state.winnerSeat === null || state.winnerSeat === undefined) return "";
+  const winner = state.players[state.winnerSeat];
+  const byLine = state.winnerReason
+    ? `<p class="small" style="margin:6px 0 0;max-width:420px;">${escapeHtml(state.winnerReason)}</p>`
+    : `<p class="xs muted" style="margin:6px 0 0;">Voted best draft by the table.</p>`;
+  return `
+    <div class="panel" style="text-align:center;border-color:var(--accent);">
+      <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;margin:0;">best draft of the night</p>
+      <h2 style="margin-top:4px;">🏆 ${escapeHtml(winner.name)}</h2>
+      ${byLine}
+    </div>
+  `;
+}
+
 function renderResults(state) {
   const all = state.players.flatMap((p) => p.roster);
   const priciest = [...all].sort((a, b) => b.price - a.price)[0];
@@ -614,6 +717,7 @@ function renderResults(state) {
   const body = el(`
     <div style="display:flex;flex-direction:column;gap:20px;align-items:center;">
       <h1>That's a wrap</h1>
+      ${winnerBanner(state)}
       <div id="results-board">
         <div style="text-align:center;">
           <p class="xs muted" style="text-transform:uppercase;letter-spacing:0.15em;margin:0;">the $${state.settings.bankroll} draft</p>
