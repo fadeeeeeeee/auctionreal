@@ -1,5 +1,5 @@
 const { getRoom, updateRoom } = require("./_lib/redis");
-const { resolveExpired, applyAiVerdict } = require("./_lib/gameLogic");
+const { resolveExpired, applyAiVerdict, setAiError } = require("./_lib/gameLogic");
 const { toPublicState } = require("./_lib/publicState");
 const { recordGameIfFinished } = require("./_lib/history");
 const { judgeWinner } = require("./_lib/judge");
@@ -28,7 +28,11 @@ module.exports = async (req, res) => {
       });
       state = await updateRoom(code, (current) => applyAiVerdict(current, winnerIndex, reason));
     } catch (aiErr) {
-      console.error("AI judge retry failed:", aiErr.message);
+      try {
+        state = await updateRoom(code, (current) => setAiError(current, aiErr.message));
+      } catch {
+        // leave state as-is if even this fails; next poll will try again
+      }
     }
   }
 
