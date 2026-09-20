@@ -53,4 +53,25 @@ async function updateRoom(code, updater) {
   throw new Error("Could not update room — too much contention, try again.");
 }
 
-module.exports = { redis, getRoom, createRoom, updateRoom };
+async function addToVoicePresence(code, seat) {
+  const r = redis();
+  const k = `voice:${code.toUpperCase()}`;
+  await r.sadd(k, String(seat));
+  await r.expire(k, ROOM_TTL_SECONDS);
+}
+
+async function removeFromVoicePresence(code, seat) {
+  const r = redis();
+  await r.srem(`voice:${code.toUpperCase()}`, String(seat));
+}
+
+async function getVoicePresence(code) {
+  const r = redis();
+  const members = await r.smembers(`voice:${code.toUpperCase()}`);
+  return (members || []).map(Number).sort((a, b) => a - b);
+}
+
+module.exports = {
+  redis, getRoom, createRoom, updateRoom, ROOM_TTL_SECONDS, key,
+  addToVoicePresence, removeFromVoicePresence, getVoicePresence,
+};
