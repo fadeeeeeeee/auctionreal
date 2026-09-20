@@ -1,5 +1,5 @@
 const { getRoom, updateRoom } = require("./_lib/redis");
-const { decide, placeBid, passBid, castMethodVote, castWinnerVote, applyAiVerdict } = require("./_lib/gameLogic");
+const { decide, placeBid, passBid, castMethodVote, castWinnerVote, applyAiVerdict, setAiError } = require("./_lib/gameLogic");
 const { toPublicState } = require("./_lib/publicState");
 const { recordGameIfFinished } = require("./_lib/history");
 const { judgeWinner } = require("./_lib/judge");
@@ -43,8 +43,12 @@ module.exports = async (req, res) => {
         next = await updateRoom(code, (current) => applyAiVerdict(current, winnerIndex, reason));
         becameFinished = true;
       } catch (aiErr) {
-        // Leave votePhase as "ai_pending" — the next state poll or action will retry judgeWinner.
-        console.error("AI judge failed:", aiErr.message);
+        // Persist the real reason so the client can show it instead of hanging forever.
+        try {
+          next = await updateRoom(code, (current) => setAiError(current, aiErr.message));
+        } catch {
+          // if even that fails, fall through and return whatever we already have
+        }
       }
     }
 
