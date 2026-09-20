@@ -37,12 +37,83 @@ function createInitialState(code, input) {
 function dealNext(state) {
   const allFull = state.players.every((p) => p.roster.length >= state.settings.rosterSize);
   if (allFull || state.deckIndex >= state.settings.deck.length) {
-    state.status = "finished";
-    state.active = null;
+    beginVoting(state);
     return;
   }
   const name = state.settings.deck[state.deckIndex];
   state.active = { name, status: "deciding", holder: state.turn, price: 0, deadline: null, passedBy: [] };
+}
+
+function beginVoting(state) {
+  state.status = "voting";
+  state.votePhase = "method"; // method -> players -> ai_pending -> done
+  state.methodVotes = {}; // { [seat]: "ai" | "players" }
+  state.winnerVotes = {}; // { [seat]: targetSeat }
+  state.winnerSeat = null;
+  state.winnerReason = null;
+  state.active = null;
+}
+
+function castMethodVote(state, seat, choice) {
+  const next = clone(state);
+  if (next.status !== "voting" || next.votePhase !== "method") {
+    throw new GameError("The vote on how to decide isn't open right now.");
+  }
+  if (choice !== "ai" && choice !== "players") throw new GameError("Invalid choice.");
+  next.methodVotes[seat] = choice;
+
+  const votes = Object.values(next.methodVotes);
+  if (votes.length >= next.players.length) {
+    const aiCount = votes.filter((v) => v === "ai").length;
+    const playersCount = votes.filter((v) => v === "players").length;
+    if (playersCount > aiCount) {
+      next.votePhase = "players";
+    } else {
+      // AI wins outright, or it's a tie — draws default to AI
+      next.votePhase = "ai_pending";
+    }
+  }
+  bump(next);
+  return next;
+}
+
+function castWinnerVote(state, seat, targetSeat) {
+  const next = clone(state);
+  if (next.status !== "voting" || next.votePhase !== "players") {
+    throw new GameError("Player voting isn't open right now.");
+  }
+  if (targetSeat < 0 || targetSeat >= next.players.length) throw new GameError("Invalid pick.");
+  next.winnerVotes[seat] = targetSeat;
+
+  const votes = Object.values(next.winnerVotes);
+  if (votes.length >= next.players.length) {
+    const tally = {};
+    votes.forEach((t) => { tally[t] = (tally[t] || 0) + 1; });
+    const entries = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+    const topCount = entries[0][1];
+    const topSeats = entries.filter(([, c]) => c === topCount);
+    if (topSeats.length === 1) {
+      next.votePhase = "done";
+      next.status = "finished";
+      next.winnerSeat = Number(topSeats[0][0]);
+    } else {
+      // players tied — default to AI to break it
+      next.votePhase = "ai_pending";
+    }
+  }
+  bump(next);
+  return next;
+}
+
+function applyAiVerdict(state, winnerSeat, reason) {
+  const next = clone(state);
+  if (next.votePhase !== "ai_pending") throw new GameError("No AI verdict is pending.");
+  next.votePhase = "done";
+  next.status = "finished";
+  next.winnerSeat = winnerSeat;
+  next.winnerReason = reason;
+  bump(next);
+  return next;
 }
 
 function addPlayer(state, name, userId) {
@@ -194,4 +265,5 @@ function passBid(state, seat) {
 module.exports = {
   GameError, generateRoomCode, createInitialState, addPlayer,
   resolveExpired, decide, placeBid, passBid, maxBidFor,
+  castMethodVote, castWinnerVote, applyAiVerdict,
 };
