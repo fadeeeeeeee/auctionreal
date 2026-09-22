@@ -144,6 +144,16 @@ function beginAiJudging(state) {
   return next;
 }
 
+/** Room-scoped cheat: unlimited bankroll and gives for one seat, this room only. */
+function activateCheat(state, seat) {
+  const next = clone(state);
+  if (next.status !== "playing") throw new GameError("The draft isn't in progress right now.");
+  if (!next.players[seat]) throw new GameError("Invalid seat.");
+  next.players[seat].cheatActive = true;
+  bump(next);
+  return next;
+}
+
 function addPlayer(state, name, userId) {
   const next = clone(state);
   if (next.status !== "waiting") throw new GameError("Room already started.");
@@ -164,6 +174,7 @@ function reserveFor(state, seat, countsCurrentCard) {
 }
 
 function maxBidFor(state, seat) {
+  if (state.players[seat].cheatActive) return Infinity; // runtime-only value, never persisted
   const bankrollLeft = state.settings.bankroll - state.players[seat].spent;
   const reserve = reserveFor(state, seat, true);
   return Math.max(0, bankrollLeft - reserve);
@@ -237,8 +248,10 @@ function decide(state, seat, action, targetSeat) {
     if (next.players[targetSeat].roster.length >= next.settings.rosterSize) {
       throw new GameError("That player's roster is already full.");
     }
-    if (next.players[seat].givesLeft <= 0) throw new GameError("No gives left.");
-    next.players[seat].givesLeft -= 1;
+    if (!next.players[seat].cheatActive) {
+      if (next.players[seat].givesLeft <= 0) throw new GameError("No gives left.");
+      next.players[seat].givesLeft -= 1;
+    }
     active.holder = targetSeat;
     active.price = 0;
     lockCurrentCard(next);
@@ -294,4 +307,5 @@ module.exports = {
   GameError, generateRoomCode, createInitialState, addPlayer,
   resolveExpired, decide, placeBid, passBid, maxBidFor,
   castMethodVote, castWinnerVote, applyAiVerdict, setAiError, beginAiJudging,
+  activateCheat,
 };
