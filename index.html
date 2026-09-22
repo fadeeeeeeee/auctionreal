@@ -171,6 +171,15 @@ function setupSidebar(code, seat) {
     } catch (e) { /* transient — next poll retries */ }
   }
   function appendChatMessage(container, msg, mySeat) {
+    if (msg.system) {
+      container.appendChild(el(`
+        <div style="align-self:center;max-width:95%;text-align:center;">
+          <p class="xs" style="margin:0;color:var(--accent-dark);font-weight:700;font-style:italic;">✨ ${escapeHtml(msg.text)}</p>
+        </div>
+      `));
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
     const mine = msg.seat === mySeat;
     container.appendChild(el(`
       <div style="align-self:${mine ? "flex-end" : "flex-start"};max-width:85%;">
@@ -821,7 +830,7 @@ function renderRoom(code, seatFromUrl) {
     state.players.forEach((p, idx) => {
       const left = state.settings.bankroll - p.spent;
       const isTurn = state.turn === idx && active && active.status === "deciding";
-      grid.appendChild(seatPanel(p.name, state.settings.bankroll, left, p.givesLeft, p.roster, seat === idx, isTurn));
+      grid.appendChild(seatPanel(p.name, state.settings.bankroll, left, p.givesLeft, p.roster, seat === idx, isTurn, p.cheatActive));
     });
     wrap.appendChild(grid);
 
@@ -840,6 +849,7 @@ function renderRoom(code, seatFromUrl) {
         const whoText = state.turn === seat ? "Your call" : `${escapeHtml(upName)}'s call`;
         activeBody.appendChild(el(`<p class="small muted">${whoText}: take it for $${state.settings.minBid}, or hand it to someone else at the table for free.</p>`));
         if (seat !== null && state.turn === seat) {
+          const iCheat = !!state.players[seat].cheatActive;
           const givesLeft = state.players[seat].givesLeft;
           const others = state.players.map((p, i) => ({ p, i })).filter((o) => o.i !== seat);
           const targetPicker = others.length > 1
@@ -853,7 +863,7 @@ function renderRoom(code, seatFromUrl) {
               <div class="row" style="justify-content:center;align-items:center;">
                 <span class="xs muted">or give it to</span>
                 ${targetPicker}
-                <button class="btn btn-ghost" id="giveBtn" ${givesLeft <= 0 ? "disabled" : ""}>free (${givesLeft} left)</button>
+                <button class="btn btn-ghost" id="giveBtn" ${!iCheat && givesLeft <= 0 ? "disabled" : ""}>free (${iCheat ? "∞" : givesLeft} left)</button>
               </div>
             </div>
           `);
@@ -926,15 +936,20 @@ function renderRoom(code, seatFromUrl) {
   pollTimer = setInterval(poll, 1000);
 }
 
-function seatPanel(name, bankroll, left, gives, entries, isMe, isTurn) {
+function seatPanel(name, bankroll, left, gives, entries, isMe, isTurn, cheatActive) {
   const rosterHtml = entries.map((e, i) => `<li><span>${i + 1}. ${escapeHtml(e.name)}</span><span>${e.price === 0 ? "free" : "$" + e.price}</span></li>`).join("");
+  const moneyLine = cheatActive
+    ? `<span class="xs" style="color:var(--accent-dark);font-weight:700;">∞ money</span>`
+    : `<span class="xs muted">$${bankroll - left} of $${bankroll}</span>`;
+  const givesLine = cheatActive ? "∞ gives left" : `${gives} gives left`;
+  const leftLine = cheatActive ? "∞" : `$${left}`;
   return el(`
     <div class="panel${isTurn ? " turn" : ""}" style="display:flex;flex-direction:column;gap:6px;">
       <div class="row" style="justify-content:space-between;">
         <span style="font-weight:600;">${escapeHtml(name)}${isMe ? " (you)" : ""}</span>
-        <span class="xs muted">$${bankroll - left} of $${bankroll}</span>
+        ${moneyLine}
       </div>
-      <p class="xs muted" style="margin:0;">$${left} left · ${gives} gives left</p>
+      <p class="xs muted" style="margin:0;">${leftLine} left · ${givesLine}</p>
       <ol class="roster">${rosterHtml}</ol>
     </div>
   `);
